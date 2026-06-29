@@ -159,7 +159,7 @@ class CapitalGainsApp(BaseWindow):
 
         self._button(toolbar, "בחר קבצים", self.add_files).grid(row=0, column=0, padx=(12, 8), pady=12)
         self._button(toolbar, "נקה", self.clear_files, fg_color=PALETTE["secondary"]).grid(row=0, column=1, padx=8, pady=12)
-        self._button(toolbar, "חשב וייצא אקסל", self.calculate_and_export).grid(row=0, column=2, padx=8, pady=12)
+        self._button(toolbar, "צור קובץ אקסל", self.calculate_and_export).grid(row=0, column=2, padx=8, pady=12)
 
         exchange_box = ctk.CTkFrame(toolbar, corner_radius=8, fg_color=PALETTE["mist"])
         exchange_box.grid(row=0, column=4, padx=12, pady=10, sticky="e")
@@ -317,22 +317,33 @@ class CapitalGainsApp(BaseWindow):
         insights_frame.grid_columnconfigure(0, weight=1)
         ctk.CTkLabel(
             insights_frame,
-            text=ui_text("5 תובנות מרכזיות"),
+            text=ui_text("תובנות מרכזיות"),
             font=ui_font(15, "bold"),
             text_color=PALETTE["text"],
             anchor="e",
         ).grid(row=0, column=0, padx=12, pady=(10, 4), sticky="ew")
         for index in range(5):
+            row = ctk.CTkFrame(insights_frame, fg_color="transparent")
+            row.grid(row=index + 1, column=0, padx=12, pady=(0, 4), sticky="ew")
+            row.grid_columnconfigure(0, weight=1)
             label = ctk.CTkLabel(
-                insights_frame,
-                text=ui_text(f"{index + 1}. התובנות יופיעו אחרי החישוב"),
+                row,
+                text=ui_text("התובנות יופיעו אחרי החישוב"),
                 font=ui_font(13),
                 text_color=PALETTE["muted"],
                 anchor="e",
                 justify="right",
-                wraplength=390,
+                wraplength=340,
             )
-            label.grid(row=index + 1, column=0, padx=12, pady=(0, 4), sticky="ew")
+            label.grid(row=0, column=0, sticky="ew")
+            ctk.CTkLabel(
+                row,
+                text=f"{index + 1}.",
+                font=ui_font(13),
+                text_color=PALETTE["muted"],
+                anchor="e",
+                width=26,
+            ).grid(row=0, column=1, padx=(6, 0), sticky="e")
             self.insight_labels.append(label)
 
         self.gain_canvas = tk.Canvas(
@@ -519,15 +530,15 @@ class CapitalGainsApp(BaseWindow):
         self.kpi_labels["issues"].configure(text=f"{summary.issue_count:,}")
         for index, label in enumerate(self.insight_labels):
             insight = summary.key_insights[index] if index < len(summary.key_insights) else ""
-            label.configure(text=ui_text(f"{index + 1}. {insight}") if insight else "")
+            label.configure(text=ui_text(insight) if insight else "")
         self._draw_gain_chart(summary.top_securities)
         self._draw_action_chart(summary.action_counts)
 
     def _draw_empty_dashboard(self) -> None:
         for label in self.kpi_labels.values():
             label.configure(text="-")
-        for index, label in enumerate(self.insight_labels):
-            label.configure(text=ui_text(f"{index + 1}. התובנות יופיעו אחרי החישוב"))
+        for label in self.insight_labels:
+            label.configure(text=ui_text("התובנות יופיעו אחרי החישוב"))
         self._draw_gain_chart([])
         self._draw_action_chart([])
 
