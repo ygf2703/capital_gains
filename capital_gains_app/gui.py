@@ -112,7 +112,7 @@ class CapitalGainsApp(BaseWindow):
     def __init__(self) -> None:
         super().__init__()
         load_assistant_font()
-        self.title(ui_title("ניתוח רווחי הון FIFO"))
+        self.title(ui_title("ניתוח רווחי הון - פיפו"))
         self.geometry("1180x760")
         self.minsize(1020, 680)
         self.configure(fg_color=PALETTE["bg"])
@@ -147,7 +147,7 @@ class CapitalGainsApp(BaseWindow):
         ).grid(row=0, column=0, padx=28, pady=(20, 4), sticky="ew")
         ctk.CTkLabel(
             header,
-            text=ui_text("מחשבון FIFO מקומי לדוחות אגיס ולאומי, עם דשבורד וייצוא Excel"),
+            text=ui_text("מחשבון פיפו מקומי לדוחות אגיס ולאומי, עם דשבורד וייצוא אקסל"),
             font=ui_font(15),
             text_color=PALETTE["muted"],
             anchor="e",
@@ -159,7 +159,7 @@ class CapitalGainsApp(BaseWindow):
 
         self._button(toolbar, "בחר קבצים", self.add_files).grid(row=0, column=0, padx=(12, 8), pady=12)
         self._button(toolbar, "נקה", self.clear_files, fg_color=PALETTE["secondary"]).grid(row=0, column=1, padx=8, pady=12)
-        self._button(toolbar, "חשב וייצא Excel", self.calculate_and_export).grid(row=0, column=2, padx=8, pady=12)
+        self._button(toolbar, "חשב וייצא אקסל", self.calculate_and_export).grid(row=0, column=2, padx=8, pady=12)
 
         exchange_box = ctk.CTkFrame(toolbar, corner_radius=8, fg_color=PALETTE["mist"])
         exchange_box.grid(row=0, column=4, padx=12, pady=10, sticky="e")
@@ -217,9 +217,9 @@ class CapitalGainsApp(BaseWindow):
         panel.grid_rowconfigure(3, weight=1)
         panel.grid_columnconfigure(0, weight=1)
 
-        label_text = "גררי לכאן קבצי Excel או לחצי על בחירת קבצים"
+        label_text = "גררי לכאן קבצי אקסל או לחצי על בחירת קבצים"
         if DND_FILES is None:
-            label_text = "בחרי דוחות Excel לניתוח"
+            label_text = "בחרי דוחות אקסל לניתוח"
         ctk.CTkLabel(
             panel,
             text=ui_text(label_text),
@@ -229,7 +229,7 @@ class CapitalGainsApp(BaseWindow):
         ).grid(row=0, column=0, padx=20, pady=(20, 4), sticky="ew")
         ctk.CTkLabel(
             panel,
-            text=ui_text("הדוחות נשארים מקומית במחשב. קבצי מקור לא נדחפים ל-Git."),
+            text=ui_text("הדוחות נשארים מקומית במחשב. קבצי מקור לא נדחפים לגיט."),
             font=ui_font(13),
             text_color=PALETTE["muted"],
             anchor="e",
@@ -293,7 +293,7 @@ class CapitalGainsApp(BaseWindow):
         cards = [
             ("transactions", "תנועות", PALETTE["card_blue"]),
             ("securities", "ניירות", PALETTE["card_silver"]),
-            ("realized", "שורות FIFO", PALETTE["card_pink"]),
+            ("realized", "שורות פיפו", PALETTE["card_pink"]),
             ("issues", "התראות", PALETTE["card_yellow"]),
         ]
         for index, (key, title, color) in enumerate(cards):
@@ -371,8 +371,8 @@ class CapitalGainsApp(BaseWindow):
 
     def add_files(self) -> None:
         selected = filedialog.askopenfilenames(
-            title=ui_title("בחרי דוחות Excel"),
-            filetypes=[("Excel files", "*.xlsx *.xlsm *.xls"), ("All files", "*.*")],
+            title=ui_title("בחרי דוחות אקסל"),
+            filetypes=[("קבצי אקסל", "*.xlsx *.xlsm *.xls"), ("כל הקבצים", "*.*")],
         )
         self._add_paths(selected)
 
@@ -426,13 +426,13 @@ class CapitalGainsApp(BaseWindow):
 
     def calculate_and_export(self) -> None:
         if not self.files:
-            messagebox.showwarning(ui_title("אין קבצים"), ui_text("בחרי לפחות קובץ Excel אחד."))
+            messagebox.showwarning(ui_title("אין קבצים"), ui_text("בחרי לפחות קובץ אקסל אחד."))
             return
         output = filedialog.asksaveasfilename(
-            title=ui_title("שמרי דוח FIFO"),
+            title=ui_title("שמרי דוח פיפו"),
             defaultextension=".xlsx",
             initialfile=f"fifo_report_{datetime.now():%Y%m%d_%H%M}.xlsx",
-            filetypes=[("Excel workbook", "*.xlsx")],
+            filetypes=[("חוברת אקסל", "*.xlsx")],
         )
         if not output:
             return
@@ -464,7 +464,7 @@ class CapitalGainsApp(BaseWindow):
                 self.status.configure(text=ui_text("נותרו שגיאות לתיקון"))
                 return
 
-        self.status.configure(text=ui_text("מחשב FIFO, מושך שער דולר ומייצא דוח..."))
+        self.status.configure(text=ui_text("מחשב פיפו, מושך שער דולר ומייצא דוח..."))
         threading.Thread(
             target=self._calculate_worker,
             args=(transactions, issues, output, requested_date),
@@ -508,7 +508,7 @@ class CapitalGainsApp(BaseWindow):
             extra += f"\nלא נטען שער דולר: {exchange_error}"
         messagebox.showinfo(
             ui_title("הסתיים"),
-            ui_text(f"הדוח נוצר בהצלחה.\nשורות FIFO: {len(result.realized)}\nהתראות: {len(result.issues)}{extra}\n\n{path}"),
+            ui_text(f"הדוח נוצר בהצלחה.\nשורות פיפו: {len(result.realized)}\nהתראות: {len(result.issues)}{extra}\n\n{path}"),
         )
 
     def _update_dashboard(self, result: CalculationResult) -> None:

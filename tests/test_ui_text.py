@@ -7,8 +7,21 @@ def test_hebrew_text_is_prepared_for_ltr_tk_widgets() -> None:
     rendered = ui_text("היי ליאת, יש קבצים לניתוח?")
 
     assert rendered.startswith(RTL_MARK)
-    assert "תאיל ייה" in rendered
+    assert rendered.endswith("היי")
+    assert "?לניתוח קבצים יש ,ליאת היי" in rendered
     assert ASSISTANT_FONT_FAMILY == "Assistant"
+
+
+def test_mixed_rtl_text_keeps_ltr_terms_readable() -> None:
+    rendered = ui_text("גררי לכאן קבצי Excel או לחצי על בחירת קבצים")
+
+    assert "קבצים בחירת על לחצי או Excel קבצי לכאן גררי" in rendered
+
+
+def test_non_hebrew_lines_are_not_reordered() -> None:
+    rendered = ui_text("הדוח נשמר:\nC:\\Temp\\fifo_report.xlsx")
+
+    assert rendered.splitlines()[1] == "C:\\Temp\\fifo_report.xlsx"
 
 
 def test_assistant_font_asset_is_bundled() -> None:

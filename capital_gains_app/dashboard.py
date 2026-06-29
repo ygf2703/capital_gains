@@ -92,9 +92,9 @@ def _build_key_insights(
 
     if gain_by_currency:
         total_text = ", ".join(f"{currency}: {_money(value)}" for currency, value in gain_by_currency)
-        insights.append(f"סך הרווח/הפסד המחושב לפי FIFO: {total_text}.")
+        insights.append(f"סך הרווח/הפסד המחושב לפי פיפו: {total_text}.")
     else:
-        insights.append("לא נמצאו מכירות שמייצרות שורות FIFO בדוח הנוכחי.")
+        insights.append("לא נמצאו מכירות שמייצרות שורות פיפו בדוח הנוכחי.")
 
     if top_securities:
         best = max(top_securities, key=lambda item: item[2])
