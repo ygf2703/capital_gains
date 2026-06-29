@@ -9,7 +9,10 @@
 - נרמול תנועות מאגיס ולאומי למבנה אחיד.
 - חישוב FIFO עם עמלות בתוך עלות קניה/תמורת מכירה.
 - טיפול בסיסי באיחודי הון, Reverse Split, הקטנת הון והחלפת נייר.
-- יצוא דוח Excel עם גיליונות Summary, Realized FIFO, Open Positions, Transactions, Corporate Actions, Validation Issues.
+- תמיכה גם בדוח יחיד של נייר ערך אחד, וגם בכמה דוחות יחד.
+- הצגת 5 תובנות מרכזיות אוטומטיות מהדוח שמנותח.
+- שליפת שער דולר יציג מבנק ישראל חודש אחורה מתאריך מבוקש.
+- יצוא דוח Excel עם גיליונות Dashboard, Summary, Realized FIFO, Open Positions, Transactions, Corporate Actions, Validation Issues.
 - GUI ב-CustomTkinter עם בחירת קבצים, Drag & Drop כאשר `tkinterdnd2` מותקן, וייצוא בלחיצה.
 - CLI לאימות חישוב בלי ממשק.
 
@@ -33,6 +36,12 @@ py -m venv .venv
 
 ```powershell
 .\.venv\Scripts\python.exe -m capital_gains_app.cli "דוח תנועות בנק אגיס.xlsx" "תנועות בניירות ערך בלל.xlsx" --output outputs\fifo_report.xlsx
+```
+
+אפשר להריץ גם על קובץ יחיד:
+
+```powershell
+.\.venv\Scripts\python.exe -m capital_gains_app.cli "single-security-report.xlsx" --output outputs\single_security_fifo.xlsx --exchange-date 2026-06-29
 ```
 
 ## בניית EXE

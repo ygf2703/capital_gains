@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime
 from enum import Enum
 from typing import Any
 
@@ -148,9 +148,21 @@ class CorporateActionRecord:
 
 
 @dataclass(slots=True)
+class ExchangeRateSnapshot:
+    requested_date: date
+    lookup_date: date
+    published_date: date
+    currency_pair: str
+    rate: float
+    source: str
+    note: str = ""
+
+
+@dataclass(slots=True)
 class CalculationResult:
     transactions: list[Transaction]
     realized: list[RealizedMatch]
     open_lots: list[Lot]
     corporate_actions: list[CorporateActionRecord]
     issues: list[ValidationIssue]
+    exchange_rate: ExchangeRateSnapshot | None = None
