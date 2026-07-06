@@ -16,6 +16,7 @@ from .fifo import calculate_fifo
 from .models import CalculationResult, ExchangeRateSnapshot, Transaction, ValidationIssue
 from .parsers import parse_workbooks
 from .ui_text import ASSISTANT_FONT_FAMILY, load_assistant_font, ui_font, ui_text, ui_title
+from .user_identity import UserIdentity, greeting_for_user, load_user_identity
 
 try:
     from tkinterdnd2 import DND_FILES, TkinterDnD
@@ -125,6 +126,7 @@ class CapitalGainsApp(BaseWindow):
         self.files: list[Path] = []
         self.last_result: CalculationResult | None = None
         self.last_exchange_rate: ExchangeRateSnapshot | None = None
+        self.user_identity: UserIdentity = load_user_identity()
         self.exchange_date_var = tk.StringVar(value=date.today().isoformat())
         self.kpi_labels: dict[str, ctk.CTkLabel] = {}
         self.insight_labels: list[ctk.CTkLabel] = []
@@ -140,7 +142,7 @@ class CapitalGainsApp(BaseWindow):
         header.grid_columnconfigure(0, weight=1)
         ctk.CTkLabel(
             header,
-            text=ui_text("היי ליאת, יש קבצים לניתוח?"),
+            text=ui_text(greeting_for_user(self.user_identity)),
             font=ui_font(28, "bold"),
             text_color=PALETTE["text"],
             anchor="e",

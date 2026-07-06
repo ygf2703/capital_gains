@@ -15,6 +15,7 @@
 - יצוא דוח Excel עם גיליונות Dashboard, Summary, Realized FIFO, Open Positions, Transactions, Corporate Actions, Validation Issues.
 - GUI ב-CustomTkinter עם בחירת קבצים, Drag & Drop כאשר `tkinterdnd2` מותקן, וייצוא בלחיצה.
 - CLI לאימות חישוב בלי ממשק.
+- שכבת זהות משתמש ראשונית: הברכה במסך נלקחת מפרופיל/מייל, כהכנה ל-Google Sign-In.
 
 ## התקנה מקומית
 
@@ -31,6 +32,22 @@ py -m venv .venv
 ```powershell
 .\.venv\Scripts\python.exe app.py
 ```
+
+לבדיקת ברכה דינמית לפני חיבור Google Sign-In מלא:
+
+```powershell
+$env:CAPITAL_GAINS_USER_EMAIL="liat.cohen@gmail.com"
+.\.venv\Scripts\python.exe app.py
+```
+
+בעת חיבור Google Sign-In, שם המשתמש יילקח קודם משם הפרופיל של Google, ואם הוא לא זמין ייגזר מהמייל.
+
+## כיווני פיתוח קרובים
+
+- Google Sign-In לדסקטופ עם שמירת פרופיל מקומית, ללא העלאת דוחות לענן.
+- אזור `שאל/שאלי את הדוח` שיענה על שאלות מתוך הקובץ שנותח בלבד.
+- זיהוי דוחות גנרי לפי כותרות עמודות, כולל מסך התאמת עמודות ושמירת תבניות.
+- הפרדת ליבת הניתוח מהממשק כדי לאפשר Microsoft Store ו-Android בהמשך.
 
 ## הרצת Console / Alpha
 
