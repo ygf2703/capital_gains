@@ -37,35 +37,35 @@ except Exception:  # pragma: no cover - optional dependency
 
 
 PALETTE = {
-    "bg": "#05070B",
-    "granite": "#08101A",
-    "granite_light": "#1A2230",
-    "graph_pattern": "#2A3341",
-    "panel": "#0F141B",
-    "panel_alt": "#0A0F15",
-    "panel_glass": "#131A23",
-    "mist": "#1A2230",
-    "line": "#313B49",
-    "text": "#F6F1E8",
-    "muted": "#C2B7A6",
-    "primary": "#CFA85A",
-    "primary_hover": "#E1C57D",
-    "primary_border": "#9D7B3B",
-    "button_text": "#10151C",
-    "secondary": "#1B2736",
-    "secondary_hover": "#26384D",
-    "secondary_border": "#415066",
-    "card_blue": "#102838",
-    "card_pink": "#2C1928",
-    "card_yellow": "#372E16",
-    "card_silver": "#17202C",
-    "chart_white": "#FFFFFF",
-    "chart_blue": "#8FD8FF",
-    "chart_pink": "#FF8FB8",
-    "chart_yellow": "#FFE27A",
-    "warning": "#FFE27A",
-    "negative": "#FF8FB8",
-    "positive": "#8FD8FF",
+    "bg": "#F6F1E8",
+    "granite": "#EEE7DB",
+    "granite_light": "#FDFBF8",
+    "graph_pattern": "#D5DCE5",
+    "panel": "#FFFFFF",
+    "panel_alt": "#FBF7F1",
+    "panel_glass": "#F3EDE2",
+    "mist": "#EAE4D9",
+    "line": "#D9D1C3",
+    "text": "#1E2B38",
+    "muted": "#6D6A66",
+    "primary": "#C9A25A",
+    "primary_hover": "#B88F47",
+    "primary_border": "#B38A46",
+    "button_text": "#182330",
+    "secondary": "#E7EDF4",
+    "secondary_hover": "#D8E1EB",
+    "secondary_border": "#C3CEDA",
+    "card_blue": "#EAF2F8",
+    "card_pink": "#F8EEF2",
+    "card_yellow": "#FAF3E0",
+    "card_silver": "#EEF2F5",
+    "chart_white": "#223344",
+    "chart_blue": "#4EA3D8",
+    "chart_pink": "#C77A98",
+    "chart_yellow": "#D7AF4B",
+    "warning": "#B88400",
+    "negative": "#C16A7D",
+    "positive": "#2F86A6",
 }
 CHART_COLORS = [PALETTE["chart_white"], PALETTE["chart_blue"], PALETTE["chart_pink"], PALETTE["chart_yellow"]]
 
@@ -96,30 +96,30 @@ class GraniteBackground(tk.Canvas):
         for _ in range(max(120, width * height // 5200)):
             x = rng.randrange(0, width)
             y = rng.randrange(0, height)
-            shade = rng.choice(["#14171A", "#1C2024", "#272B30", "#343941"])
+            shade = rng.choice(["#F3EEE5", "#EAE4D8", "#E2DBCF", "#DAD3C9"])
             size = rng.choice([1, 1, 1, 2])
             self.create_oval(x, y, x + size, y + size, fill=shade, outline="")
 
-        for _ in range(34):
+        for _ in range(22):
             x = rng.randrange(-80, width)
             y = rng.randrange(0, height)
             length = rng.randrange(70, 190)
-            color = rng.choice(["#1B1F24", "#242930", "#303640"])
+            color = rng.choice(["#E3DDD3", "#D7DDE6", "#E8E2D8"])
             self.create_line(x, y, x + length, y - rng.randrange(8, 34), fill=color, width=1)
 
-        for band in range(5):
-            base_y = height - 90 - band * 76
+        for band in range(4):
+            base_y = height - 84 - band * 88
             points: list[int] = []
             for step in range(8):
                 x = 40 + step * max(90, width // 8)
-                y = base_y - step * 18 + rng.randrange(-24, 25)
+                y = base_y - step * 16 + rng.randrange(-18, 19)
                 points.extend([x, y])
             self.create_line(*points, fill=PALETTE["graph_pattern"], width=2, smooth=True, dash=(7, 8))
 
-        for index in range(9):
+        for index in range(8):
             x0 = width - 60 - index * 44
             h = 34 + index * 17
-            self.create_rectangle(x0, height - 42 - h, x0 + 16, height - 42, fill="#181C21", outline="")
+            self.create_rectangle(x0, height - 42 - h, x0 + 16, height - 42, fill="#E5DCCB", outline="")
 
 
 class CapitalGainsApp(BaseWindow):
@@ -130,7 +130,7 @@ class CapitalGainsApp(BaseWindow):
         self.geometry("1180x760")
         self.minsize(1020, 680)
         self.configure(fg_color=PALETTE["bg"])
-        ctk.set_appearance_mode("dark")
+        ctk.set_appearance_mode("light")
         ctk.set_default_color_theme("dark-blue")
         self.background = GraniteBackground(self)
         self.background.place(x=0, y=0, relwidth=1, relheight=1)
@@ -362,8 +362,8 @@ class CapitalGainsApp(BaseWindow):
             fg=PALETTE["text"],
             highlightthickness=0,
             borderwidth=0,
-            selectbackground="#233243",
-            selectforeground=PALETTE["chart_white"],
+            selectbackground="#DCE6F0",
+            selectforeground=PALETTE["text"],
             font=(ASSISTANT_FONT_FAMILY, 11),
         )
         self.file_list.grid(row=0, column=0, padx=14, pady=14, sticky="nsew")
@@ -1080,10 +1080,36 @@ class LoginDialog(ctk.CTkToplevel):
         )
         brand_frame.pack(fill="x", padx=24, pady=(20, 14))
 
+        logo_shell = ctk.CTkFrame(
+            brand_frame,
+            fg_color="#F5EFE5",
+            corner_radius=16,
+            border_width=1,
+            border_color=PALETTE["line"],
+        )
+        logo_shell.pack(fill="x", padx=20, pady=(18, 12))
+
+        logo_plate = ctk.CTkFrame(
+            logo_shell,
+            fg_color="#FFFDF9",
+            corner_radius=14,
+            border_width=1,
+            border_color="#E0D3B5",
+        )
+        logo_plate.pack(fill="x", padx=26, pady=(18, 10))
+
         self.logo_image = self._load_logo_image()
         if self.logo_image is not None:
-            logo_label = tk.Label(self, image=self.logo_image, bg=PALETTE["panel_alt"], bd=0, highlightthickness=0)
-            logo_label.pack(in_=brand_frame, pady=(14, 6))
+            logo_label = tk.Label(self, image=self.logo_image, bg="#FFFDF9", bd=0, highlightthickness=0)
+            logo_label.pack(in_=logo_plate, pady=(16, 14))
+        ctk.CTkLabel(
+            logo_shell,
+            text=ui_text("ניתוח הון מקומי, נקי ומדויק לחוויית עבודה רגועה וברורה."),
+            font=ui_font(12),
+            text_color=PALETTE["muted"],
+            anchor="center",
+            justify="center",
+        ).pack(fill="x", padx=18, pady=(0, 14))
         ctk.CTkLabel(
             brand_frame,
             text=ui_text("ברוכים הבאים"),
@@ -1237,7 +1263,7 @@ class LoginDialog(ctk.CTkToplevel):
             image = tk.PhotoImage(file=str(logo_path))
         except tk.TclError:
             return None
-        return image.subsample(4, 4)
+        return image.subsample(3, 3)
 
     def _login_local(self) -> None:
         try:
@@ -1385,7 +1411,7 @@ class MappingTemplateDialog(ctk.CTkToplevel):
             anchor="e",
         ).pack(fill="x", padx=18, pady=(0, 10))
 
-        preview_box = ctk.CTkTextbox(self, height=96, fg_color="#0D1013", text_color=PALETTE["text"], font=ui_font(12))
+        preview_box = ctk.CTkTextbox(self, height=96, fg_color=PALETTE["panel_alt"], text_color=PALETTE["text"], font=ui_font(12))
         preview_box.pack(fill="x", padx=18, pady=(0, 10))
         preview_box.insert("1.0", ui_text("כותרות שזוהו:\n" + " | ".join(preview.headers)))
         if preview.sample_rows:
@@ -1429,7 +1455,7 @@ class MappingTemplateDialog(ctk.CTkToplevel):
             command=self.destroy,
             fg_color=PALETTE["secondary"],
             hover_color=PALETTE["secondary_hover"],
-            text_color="white",
+            text_color=PALETTE["text"],
         ).pack(side="right", padx=8, pady=8)
 
         self._prefill_suggestions()
@@ -1796,8 +1822,8 @@ def _configure_treeview_style(widget) -> None:
         pass
     style.configure(
         "Luxury.Treeview",
-        background="#0D1013",
-        fieldbackground="#0D1013",
+        background=PALETTE["panel_alt"],
+        fieldbackground=PALETTE["panel_alt"],
         foreground=PALETTE["text"],
         font=(ASSISTANT_FONT_FAMILY, 11),
         bordercolor=PALETTE["line"],
@@ -1807,14 +1833,14 @@ def _configure_treeview_style(widget) -> None:
     )
     style.configure(
         "Luxury.Treeview.Heading",
-        background="#1D2228",
-        foreground=PALETTE["chart_white"],
+        background=PALETTE["mist"],
+        foreground=PALETTE["text"],
         font=(ASSISTANT_FONT_FAMILY, 11, "bold"),
         bordercolor=PALETTE["line"],
         relief="flat",
         anchor="e",
     )
-    style.map("Luxury.Treeview", background=[("selected", "#2A3138")], foreground=[("selected", PALETTE["chart_white"])])
+    style.map("Luxury.Treeview", background=[("selected", "#DCE6F0")], foreground=[("selected", PALETTE["text"])])
 
 
 def _short_label(value: str) -> str:

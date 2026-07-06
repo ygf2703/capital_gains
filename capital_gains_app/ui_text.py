@@ -10,8 +10,7 @@ import customtkinter as ctk
 ASSISTANT_FONT_FAMILY = "Assistant"
 _FR_PRIVATE = 0x10
 _FR_NOT_ENUM = 0x20
-_RTL_EMBED = "\u202B"
-_RTL_POP = "\u202C"
+_RTL_MARK = "\u200F"
 
 
 def app_root() -> Path:
@@ -54,4 +53,4 @@ def _has_hebrew(text: str) -> bool:
 
 
 def _prepare_rtl_line(line: str) -> str:
-    return f"{_RTL_EMBED}{line}{_RTL_POP}"
+    return f"{_RTL_MARK}{line}{_RTL_MARK}"
