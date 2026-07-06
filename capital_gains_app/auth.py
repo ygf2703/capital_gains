@@ -279,7 +279,7 @@ class GoogleAuthService:
         candidates = "\n".join(f"- {path}" for path in self.client_secret_candidates())
         return (
             "כדי להפעיל התחברות עם Google צריך קובץ OAuth של Desktop App.\n"
-            "הורידי את ה-JSON מ-Google Cloud Console ושמרי אותו באחד מהמיקומים האלה:\n"
+            "יש להוריד את קובץ ה-JSON מ-Google Cloud Console ולשמור אותו באחד מהמיקומים האלה:\n"
             f"{candidates}\n\n"
             "השם שמוצג באפליקציה ייגזר מהאימייל של המשתמש."
         )
@@ -434,7 +434,7 @@ class GoogleAuthService:
         try:
             from google_auth_oauthlib.flow import InstalledAppFlow
         except ImportError as exc:  # pragma: no cover - dependency boundary
-            raise GoogleAuthError("חסר package בשם google-auth-oauthlib. הריצי התקנת requirements מחדש.") from exc
+            raise GoogleAuthError("חסר package בשם google-auth-oauthlib. יש להריץ התקנת requirements מחדש.") from exc
         return InstalledAppFlow
 
     @staticmethod
@@ -442,7 +442,7 @@ class GoogleAuthService:
         try:
             from google.oauth2.credentials import Credentials
         except ImportError as exc:  # pragma: no cover - dependency boundary
-            raise GoogleAuthError("חסר package בשם google-auth. הריצי התקנת requirements מחדש.") from exc
+            raise GoogleAuthError("חסר package בשם google-auth. יש להריץ התקנת requirements מחדש.") from exc
         return Credentials
 
     @staticmethod
@@ -450,7 +450,7 @@ class GoogleAuthService:
         try:
             from google.auth.transport.requests import Request
         except ImportError as exc:  # pragma: no cover - dependency boundary
-            raise GoogleAuthError("חסר package בשם requests או google-auth transport. הריצי התקנת requirements מחדש.") from exc
+            raise GoogleAuthError("חסר package בשם requests או google-auth transport. יש להריץ התקנת requirements מחדש.") from exc
         return Request
 
 

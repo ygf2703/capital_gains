@@ -92,6 +92,22 @@ class AuthServiceTests(unittest.TestCase):
             self.assertFalse(profile_path.exists())
             self.assertTrue(users_path.exists())
 
+    def test_sign_out_clears_google_profile_and_token(self) -> None:
+        with TemporaryDirectory() as tmp:
+            profile_path = Path(tmp) / "profile.json"
+            token_path = Path(tmp) / "token.json"
+            profile_path.write_text(
+                '{"provider":"google","email":"noam@gmail.com","name":"Noam","user_id":"123"}',
+                encoding="utf-8",
+            )
+            token_path.write_text("{}", encoding="utf-8")
+            auth = AuthService(profile_path=profile_path, users_path=Path(tmp) / "users.json", token_path=token_path)
+
+            auth.sign_out()
+
+            self.assertFalse(profile_path.exists())
+            self.assertFalse(token_path.exists())
+
     def test_auth_session_exposes_user_identity(self) -> None:
         session = AuthSession(provider="google", email="liat.cohen@gmail.com", name="Liat", connected=True)
 

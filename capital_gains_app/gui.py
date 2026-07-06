@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import random
+import shutil
 import threading
 import tkinter as tk
 from datetime import date, datetime
@@ -863,7 +864,7 @@ class CapitalGainsApp(BaseWindow):
                 return
 
         output = filedialog.asksaveasfilename(
-            title=ui_title("שמרי דוח פיפו"),
+            title=ui_title("שמור דוח פיפו"),
             defaultextension=".xlsx",
             initialfile=f"fifo_report_{datetime.now():%Y%m%d_%H%M}.xlsx",
             filetypes=[("חוברת אקסל", "*.xlsx")],
@@ -1049,7 +1050,7 @@ class LoginDialog(ctk.CTkToplevel):
         super().__init__(parent)
         self.parent = parent
         self.title(ui_title("התחברות"))
-        self.geometry("560x640")
+        self.geometry("560x700")
         self.transient(parent)
         self.grab_set()
         self.configure(fg_color=PALETTE["bg"])
@@ -1082,7 +1083,7 @@ class LoginDialog(ctk.CTkToplevel):
         self.logo_image = self._load_logo_image()
         if self.logo_image is not None:
             logo_label = tk.Label(self, image=self.logo_image, bg=PALETTE["panel_alt"], bd=0, highlightthickness=0)
-            logo_label.pack(in_=brand_frame, pady=(18, 8))
+            logo_label.pack(in_=brand_frame, pady=(14, 6))
         ctk.CTkLabel(
             brand_frame,
             text=ui_text("ברוכים הבאים"),
@@ -1099,6 +1100,39 @@ class LoginDialog(ctk.CTkToplevel):
             justify="right",
             wraplength=470,
         ).pack(fill="x", padx=24, pady=(0, 18))
+
+        social_frame = ctk.CTkFrame(
+            self,
+            fg_color=PALETTE["panel"],
+            corner_radius=8,
+            border_width=1,
+            border_color=PALETTE["line"],
+        )
+        social_frame.pack(fill="x", padx=24, pady=(0, 12))
+        ctk.CTkLabel(
+            social_frame,
+            text=ui_text("כניסה מהירה עם Google"),
+            font=ui_font(13, "bold"),
+            text_color=PALETTE["text"],
+            anchor="e",
+        ).pack(fill="x", padx=14, pady=(10, 4))
+        ctk.CTkLabel(
+            social_frame,
+            text=ui_text("אפשר להתחבר גם ישירות עם חשבון Google, בלי ליצור סיסמה מקומית."),
+            font=ui_font(12),
+            text_color=PALETTE["muted"],
+            anchor="e",
+            justify="right",
+            wraplength=420,
+        ).pack(fill="x", padx=14, pady=(0, 8))
+        self.google_button = self.parent._button(
+            social_frame,
+            "כניסה עם Google",
+            self._handle_google_button,
+            fg_color=PALETTE["secondary"],
+            width=240,
+        )
+        self.google_button.pack(anchor="e", padx=14, pady=(0, 12))
 
         tabs = ctk.CTkTabview(
             self,
@@ -1134,17 +1168,7 @@ class LoginDialog(ctk.CTkToplevel):
             wraplength=420,
         )
         self.status_label.pack(fill="x", padx=14, pady=(10, 8))
-        self.google_button = self.parent._button(
-            footer,
-            "כניסה עם Google",
-            self._sign_in_with_google,
-            fg_color=PALETTE["secondary"],
-            width=180,
-        )
-        self.google_button.pack(anchor="e", padx=14, pady=(0, 12))
-        if not self.parent.auth_service.has_google_configuration():
-            self.google_button.configure(state="disabled")
-            self.status_label.configure(text=ui_text("חיבור Google יהיה זמין אחרי הוספת google_client_secret.json."))
+        self._refresh_google_option()
 
     def _build_login_tab(self, tab) -> None:
         self._labeled_entry(tab, "אימייל", self.login_email)
@@ -1213,7 +1237,7 @@ class LoginDialog(ctk.CTkToplevel):
             image = tk.PhotoImage(file=str(logo_path))
         except tk.TclError:
             return None
-        return image.subsample(5, 5)
+        return image.subsample(4, 4)
 
     def _login_local(self) -> None:
         try:
@@ -1242,6 +1266,53 @@ class LoginDialog(ctk.CTkToplevel):
             self._set_status(str(exc), PALETTE["warning"])
             return
         self.parent._apply_auth_session(session)
+
+    def _refresh_google_option(self) -> None:
+        if self.google_button is None or self.status_label is None:
+            return
+
+        if self.parent.auth_service.has_google_configuration():
+            self.google_button.configure(text=ui_text("כניסה עם Google"), state="normal")
+            self.status_label.configure(text=ui_text("אפשר להתחבר עם אימייל וסיסמה, או להמשיך עם Google."))
+            return
+
+        self.google_button.configure(text=ui_text("הגדר התחברות עם Google"), state="normal")
+        self.status_label.configure(text=ui_text("כדי להפעיל חיבור Google צריך לבחור קובץ google_client_secret.json."))
+
+    def _handle_google_button(self) -> None:
+        if self.parent.auth_service.has_google_configuration():
+            self._sign_in_with_google()
+            return
+        self._configure_google_sign_in()
+
+    def _configure_google_sign_in(self) -> None:
+        message = f"{self.parent.auth_service.google_configuration_message()}\n\nלבחור עכשיו את קובץ ההגדרה?"
+        if not messagebox.askyesno(ui_title("הגדרת Google"), ui_text(message), parent=self):
+            self._set_status("חיבור Google עדיין לא הוגדר.", PALETTE["muted"])
+            return
+
+        selected = filedialog.askopenfilename(
+            parent=self,
+            title=ui_title("בחר קובץ Google Client Secret"),
+            filetypes=[("JSON", "*.json"), ("All files", "*.*")],
+        )
+        if not selected:
+            self._set_status("לא נבחר קובץ Google.", PALETTE["muted"])
+            return
+
+        source_path = Path(selected)
+        target_path = app_root() / "config" / "google_client_secret.json"
+
+        try:
+            target_path.parent.mkdir(parents=True, exist_ok=True)
+            if source_path.resolve() != target_path.resolve():
+                shutil.copy2(source_path, target_path)
+        except OSError as exc:
+            self._set_status(f"לא הצלחתי לשמור את קובץ Google: {exc}", PALETTE["warning"])
+            return
+
+        self._refresh_google_option()
+        self._set_status("חיבור Google הוגדר. אפשר להמשיך עם Google.", PALETTE["positive"])
 
     def _sign_in_with_google(self) -> None:
         if self.google_button is not None:
@@ -1474,6 +1545,8 @@ class CorrectionsDialog(ctk.CTkToplevel):
         self.corrections: dict[tuple[str, str, int, str], str] = {}
         self.confirmed = False
         self.selected_issue: ValidationIssue | None = None
+        self.progress_label: ctk.CTkLabel | None = None
+        self.raw_preview: ctk.CTkTextbox | None = None
 
         ctk.CTkLabel(
             self,
@@ -1533,7 +1606,15 @@ class CorrectionsDialog(ctk.CTkToplevel):
             text_color=PALETTE["muted"],
             anchor="e",
         )
-        self.selected_label.grid(row=0, column=0, padx=10, pady=10, sticky="e")
+        self.selected_label.grid(row=0, column=0, padx=10, pady=(10, 4), sticky="e")
+        self.progress_label = ctk.CTkLabel(
+            form,
+            text="",
+            font=ui_font(12),
+            text_color=PALETTE["muted"],
+            anchor="e",
+        )
+        self.progress_label.grid(row=1, column=0, padx=10, pady=(0, 10), sticky="e")
         self.value_entry = ctk.CTkEntry(
             form,
             placeholder_text=ui_text("ערך חדש"),
@@ -1541,7 +1622,8 @@ class CorrectionsDialog(ctk.CTkToplevel):
             justify="right",
             font=ui_font(13),
         )
-        self.value_entry.grid(row=0, column=1, padx=10, pady=10, sticky="ew")
+        self.value_entry.grid(row=0, column=1, rowspan=2, padx=10, pady=10, sticky="ew")
+        self.value_entry.bind("<Return>", lambda _event: self._save_current())
         ctk.CTkButton(
             form,
             text=ui_text("שמור תיקון"),
@@ -1550,7 +1632,29 @@ class CorrectionsDialog(ctk.CTkToplevel):
             fg_color=PALETTE["primary"],
             hover_color=PALETTE["primary_hover"],
             text_color=PALETTE["button_text"],
-        ).grid(row=0, column=2, padx=10, pady=10)
+        ).grid(row=0, column=2, rowspan=2, padx=10, pady=10)
+
+        preview_frame = ctk.CTkFrame(self, fg_color=PALETTE["panel"], corner_radius=8, border_width=1, border_color=PALETTE["line"])
+        preview_frame.pack(fill="both", padx=18, pady=(0, 8))
+        ctk.CTkLabel(
+            preview_frame,
+            text=ui_text("תצוגת שורה לפני תיקון"),
+            font=ui_font(13, "bold"),
+            text_color=PALETTE["text"],
+            anchor="e",
+        ).pack(fill="x", padx=12, pady=(10, 4))
+        self.raw_preview = ctk.CTkTextbox(
+            preview_frame,
+            height=108,
+            fg_color=PALETTE["panel_alt"],
+            text_color=PALETTE["text"],
+            border_width=0,
+            font=ui_font(12),
+            wrap="word",
+        )
+        self.raw_preview.pack(fill="both", expand=True, padx=12, pady=(0, 12))
+        self.raw_preview.insert("1.0", ui_text("כאן תופיע תצוגה של ערכי השורה שנבחרה, כדי שתוכל לתקן בביטחון."))
+        self.raw_preview.configure(state="disabled")
 
         buttons = ctk.CTkFrame(self, fg_color=PALETTE["panel"])
         buttons.pack(fill="x", padx=18, pady=(0, 18))
@@ -1572,6 +1676,13 @@ class CorrectionsDialog(ctk.CTkToplevel):
             command=self.destroy,
         ).pack(side="right", padx=8, pady=8)
 
+        self._refresh_progress()
+        if issues:
+            first = "0"
+            self.tree.selection_set(first)
+            self.tree.focus(first)
+            self._on_select()
+
     def _on_select(self, _event=None) -> None:
         selection = self.tree.selection()
         if not selection:
@@ -1581,6 +1692,7 @@ class CorrectionsDialog(ctk.CTkToplevel):
         self.selected_label.configure(text=ui_text(f"{issue.source_file} | שורה {issue.row_number} | {issue.field}"))
         self.value_entry.delete(0, tk.END)
         self.value_entry.insert(0, "" if issue.value is None else str(issue.value))
+        self._refresh_preview(issue)
 
     def _save_current(self) -> None:
         if self.selected_issue is None:
@@ -1588,7 +1700,7 @@ class CorrectionsDialog(ctk.CTkToplevel):
             return
         value = self.value_entry.get().strip()
         if not value:
-            messagebox.showwarning(ui_title("ערך חסר"), ui_text("הזיני ערך חדש."))
+            messagebox.showwarning(ui_title("ערך חסר"), ui_text("הזן ערך חדש."))
             return
         issue = self.selected_issue
         key = (issue.source_file, issue.sheet, issue.row_number, issue.field)
@@ -1599,6 +1711,7 @@ class CorrectionsDialog(ctk.CTkToplevel):
             values[0] = ui_text("תוקן")
             values[5] = value
             self.tree.item(selection[0], values=values)
+        self._refresh_progress()
 
     def _confirm(self) -> None:
         missing = len(self.issues) - len(self.corrections)
@@ -1606,6 +1719,52 @@ class CorrectionsDialog(ctk.CTkToplevel):
             return
         self.confirmed = True
         self.destroy()
+
+    def _refresh_progress(self) -> None:
+        if self.progress_label is None:
+            return
+        fixed = len(self.corrections)
+        total = len(self.issues)
+        self.progress_label.configure(text=ui_text(f"תוקנו {fixed} מתוך {total} שורות"))
+
+    def _refresh_preview(self, issue: ValidationIssue) -> None:
+        if self.raw_preview is None:
+            return
+        tx = next(
+            (
+                item
+                for item in self.transactions
+                if item.source_file == issue.source_file and item.sheet == issue.sheet and item.row_number == issue.row_number
+            ),
+            None,
+        )
+        lines = [
+            f"קובץ: {issue.source_file}",
+            f"גיליון: {issue.sheet}",
+            f"שורה: {issue.row_number}",
+            f"שדה לתיקון: {issue.field}",
+            f"הודעה: {issue.message}",
+        ]
+        if tx is not None:
+            lines.extend(
+                [
+                    "",
+                    f"פעולה: {tx.action_raw}",
+                    f"נייר: {tx.display_security or tx.inventory_key}",
+                    f"כמות: {tx.quantity}",
+                    f"מחיר: {tx.price}",
+                    f"סכום נטו: {tx.net_amount}",
+                    f"מטבע: {tx.currency}",
+                ]
+            )
+            if tx.raw:
+                lines.append("")
+                lines.append("ערכי מקור:")
+                lines.extend(f"{key}: {value}" for key, value in list(tx.raw.items())[:8])
+        self.raw_preview.configure(state="normal")
+        self.raw_preview.delete("1.0", tk.END)
+        self.raw_preview.insert("1.0", ui_text("\n".join(lines)))
+        self.raw_preview.configure(state="disabled")
 
 
 def _apply_corrections(transactions: list[Transaction], corrections: dict[tuple[str, str, int, str], str]) -> None:

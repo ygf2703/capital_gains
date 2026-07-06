@@ -62,8 +62,10 @@ class DashboardExportTests(unittest.TestCase):
             workbook = load_workbook(output, data_only=True)
             self.assertIn("Dashboard", workbook.sheetnames)
             self.assertIn("Realized FIFO", workbook.sheetnames)
+            self.assertIn("Validation Issues", workbook.sheetnames)
             self.assertEqual(workbook["Dashboard"]["A1"].value, "דשבורד רווחי הון")
             self.assertTrue(workbook["Dashboard"].sheet_view.rightToLeft)
+            self.assertEqual(workbook.properties.creator, "Capital Gains")
 
     def test_bank_of_israel_csv_parser_and_one_month_back(self):
         raw = (
@@ -74,6 +76,18 @@ class DashboardExportTests(unittest.TestCase):
         rows = parse_boi_exchange_rate_csv(raw)
         self.assertEqual(rows[-1], (date(2024, 1, 15), 3.72))
         self.assertEqual(one_month_back(date(2024, 3, 31)), date(2024, 2, 29))
+
+    def test_export_includes_validation_sheet_even_without_issues(self):
+        result = calculate_fifo([tx(1, "2024-01-01", ActionType.BUY, 10, 10, -100)])
+        result.issues = []
+
+        with TemporaryDirectory() as tmp:
+            output = Path(tmp) / "validation_sheet.xlsx"
+            export_result(result, output)
+            workbook = load_workbook(output, data_only=True)
+            sheet = workbook["Validation Issues"]
+            self.assertEqual(sheet["A1"].value, "חומרה")
+            self.assertEqual(sheet["B2"].value, "לא נמצאו התראות או חריגים.")
 
 
 if __name__ == "__main__":

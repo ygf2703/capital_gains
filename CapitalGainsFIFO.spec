@@ -12,7 +12,6 @@ a = Analysis(
     datas=[
         ("assets/fonts/Assistant.ttf", "assets/fonts"),
         ("assets/fonts/OFL.txt", "assets/fonts"),
-        ("assets/images/capital_gains_logo.png", "assets/images"),
         ("assets/images/capital_gains_logo_transparent.png", "assets/images"),
     ],
     hiddenimports=hiddenimports,
@@ -42,6 +41,8 @@ exe = EXE(
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
+    icon="assets/images/capital_gains.ico",
+    version="assets/windows_version_info.txt",
     codesign_identity=None,
     entitlements_file=None,
 )
