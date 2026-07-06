@@ -25,7 +25,7 @@ from .exchange_rates import parse_user_date
 from .models import CalculationResult, ExchangeRateSnapshot, Transaction, ValidationIssue
 from .parsers import HeaderPreview, _normalize_header_text
 from .services import save_generic_report_template
-from .ui_text import ASSISTANT_FONT_FAMILY, load_assistant_font, ui_font, ui_text, ui_title
+from .ui_text import ASSISTANT_FONT_FAMILY, app_root, load_assistant_font, ui_font, ui_text, ui_title
 from .user_identity import UserIdentity, greeting_for_user
 
 try:
@@ -936,17 +936,22 @@ class LoginDialog(ctk.CTkToplevel):
         self.register_remember = tk.BooleanVar(value=True)
         self.status_label: ctk.CTkLabel | None = None
         self.google_button: ctk.CTkButton | None = None
+        self.logo_image: tk.PhotoImage | None = None
 
         self._build_ui()
 
     def _build_ui(self) -> None:
+        self.logo_image = self._load_logo_image()
+        if self.logo_image is not None:
+            logo_label = tk.Label(self, image=self.logo_image, bg=PALETTE["bg"], bd=0, highlightthickness=0)
+            logo_label.pack(pady=(18, 6))
         ctk.CTkLabel(
             self,
-            text=ui_text("ברוכה הבאה"),
+            text=ui_text("ברוכים הבאים"),
             font=ui_font(24, "bold"),
             text_color=PALETTE["text"],
             anchor="e",
-        ).pack(fill="x", padx=24, pady=(22, 4))
+        ).pack(fill="x", padx=24, pady=(4, 4))
         ctk.CTkLabel(
             self,
             text=ui_text("כדי להיכנס לניתוח הדוחות צריך להתחבר עם משתמש מקומי או עם Google."),
@@ -976,7 +981,7 @@ class LoginDialog(ctk.CTkToplevel):
             wraplength=420,
         )
         self.status_label.pack(fill="x", padx=14, pady=(10, 8))
-        self.google_button = self.parent._button(footer, "המשיכי עם Google", self._sign_in_with_google, width=180)
+        self.google_button = self.parent._button(footer, "כניסה עם Google", self._sign_in_with_google, width=180)
         self.google_button.pack(anchor="e", padx=14, pady=(0, 12))
         if not self.parent.auth_service.has_google_configuration():
             self.google_button.configure(state="disabled")
@@ -1029,6 +1034,16 @@ class LoginDialog(ctk.CTkToplevel):
     def _set_status(self, message: str, color: str | None = None) -> None:
         if self.status_label is not None:
             self.status_label.configure(text=ui_text(message), text_color=color or PALETTE["muted"])
+
+    def _load_logo_image(self) -> tk.PhotoImage | None:
+        logo_path = app_root() / "assets" / "images" / "capital_gains_logo.png"
+        if not logo_path.exists():
+            return None
+        try:
+            image = tk.PhotoImage(file=str(logo_path))
+        except tk.TclError:
+            return None
+        return image.subsample(4, 4)
 
     def _login_local(self) -> None:
         try:
