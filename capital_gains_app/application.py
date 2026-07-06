@@ -111,7 +111,7 @@ class CapitalGainsWorkflow:
 
     def prepare_analysis(self, exchange_date: str) -> AnalysisPreparation:
         if not self.state.files:
-            raise ValueError("בחרי לפחות קובץ אקסל אחד.")
+            raise ValueError("יש לבחור לפחות קובץ אקסל אחד.")
 
         requested_date = parse_user_date(exchange_date)
         parsed: ParsedReports = parse_reports(self.state.files)

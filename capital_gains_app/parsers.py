@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from difflib import SequenceMatcher
 from pathlib import Path
+import re
 from typing import Any
 
 import pandas as pd
@@ -85,31 +86,126 @@ GENERIC_REQUIRED_FIELDS = ("trade_date", "action", "quantity")
 GENERIC_VALUE_FIELDS = ("net_amount", "price")
 GENERIC_SECURITY_FIELDS = ("security_id", "symbol", "security_name")
 GENERIC_FIELD_ALIASES: dict[str, tuple[str, ...]] = {
-    "reference": ("reference", "transaction id", "אסמכתא", "מספר אסמכתא", "אסמכתה"),
-    "trade_date": ("trade date", "execution date", "date", "transaction date", "תאריך", "תאריך ביצוע", "תאריך עסקה"),
-    "settlement_date": ("settlement date", "value date", "settlement", "תאריך ערך"),
-    "action": ("action", "transaction", "activity", "operation", "type", "פעולה", "סוג פעולה", "סוג"),
-    "quantity": ("quantity", "qty", "units", "shares", "executed quantity", "כמות", "יחידות", "מניות"),
-    "price": ("price", "trade price", "execution price", "unit price", "שער", "מחיר", "שער ביצוע", "מחיר ביצוע"),
+    "reference": ("reference", "transaction id", "reference no", "doc number", "אסמכתא", "מספר אסמכתא", "אסמכתה"),
+    "trade_date": (
+        "trade date",
+        "execution date",
+        "date",
+        "transaction date",
+        "date executed",
+        "activity date",
+        "deal date",
+        "booking date",
+        "תאריך",
+        "תאריך ביצוע",
+        "תאריך עסקה",
+        "תאריך מסחר",
+    ),
+    "settlement_date": ("settlement date", "settle date", "value date", "settlement", "תאריך ערך"),
+    "action": (
+        "action",
+        "transaction",
+        "transaction type",
+        "activity",
+        "activity type",
+        "operation",
+        "movement type",
+        "side",
+        "type",
+        "פעולה",
+        "תיאור פעולה",
+        "סוג פעולה",
+        "סוג",
+    ),
+    "quantity": (
+        "quantity",
+        "qty",
+        "units",
+        "shares",
+        "share quantity",
+        "executed quantity",
+        "units shares",
+        "כמות",
+        "כמות נייר",
+        "יחידות",
+        "מניות",
+    ),
+    "price": (
+        "price",
+        "trade price",
+        "execution price",
+        "unit price",
+        "average price",
+        "execution rate",
+        "שער",
+        "מחיר",
+        "שער ביצוע",
+        "מחיר ביצוע",
+    ),
     "net_amount": (
         "net amount",
         "net proceeds",
         "proceeds",
         "amount",
         "gross amount",
+        "gross proceeds",
+        "cash amount",
+        "transaction amount",
+        "deal amount",
         "תמורה נטו",
         "תמורה",
         "סכום",
         "שווי",
     ),
-    "security_id": ("security id", "cusip", "isin", "security no", "מספר נייר", "מס נייר", "מספר בורסה", 'מס" נייר'),
-    "symbol": ("symbol", "ticker", "security", "code", "סימול", "קוד"),
-    "security_name": ("security name", "description", "name", "instrument", 'שם ני"ע', "שם נייר ערך", "שם נייר", "תיאור"),
-    "currency": ("currency", "base currency", "trade currency", "מטבע", "מטבע עסקה"),
-    "report_currency": ("report currency", "currency report", "מטבע דיווח"),
-    "commission": ("commission", "commissions", "fee", "fees", "עמלה", "עמלות", "דמי ניהול"),
-    "fees": ("other fees", "fees", "charges", "חיובים", "דמי"),
-    "bank_reported_gain_loss": ("gain/loss", "profit/loss", "reported gain", "רווח/הפסד", "רווח הפסד"),
+    "security_id": (
+        "security id",
+        "security number",
+        "security no",
+        "security code",
+        "cusip",
+        "isin",
+        "מספר נייר",
+        "מס נייר",
+        "מספר בורסה",
+        'מס" נייר',
+    ),
+    "symbol": ("symbol", "ticker", "ticker symbol", "security ticker", "symbol ticker", "code", "סימול", "סימול נייר", "קוד"),
+    "security_name": (
+        "security name",
+        "security description",
+        "description",
+        "name",
+        "instrument",
+        "instrument name",
+        "asset name",
+        'שם ני"ע',
+        "שם נייר ערך",
+        "שם נייר",
+        "תיאור",
+    ),
+    "currency": ("currency", "base currency", "trade currency", "currency code", "trade ccy", "ccy", "מטבע", "מטבע עסקה"),
+    "report_currency": ("report currency", "statement currency", "currency report", "report ccy", "מטבע דיווח"),
+    "commission": ("commission", "commissions", "broker fee", "transaction fee", "fee", "fees", "עמלה", "עמלות", "דמי ניהול"),
+    "fees": ("other fees", "exchange fee", "fees", "charges", "חיובים", "דמי"),
+    "bank_reported_gain_loss": ("gain/loss", "profit/loss", "realized pnl", "realized p&l", "reported gain", "רווח/הפסד", "רווח הפסד"),
+}
+
+GENERIC_FIELD_KEYWORDS: dict[str, tuple[tuple[str, ...], ...]] = {
+    "reference": (("reference",), ("transaction", "id"), ("אסמכתא",)),
+    "trade_date": (("trade", "date"), ("execution", "date"), ("date", "executed"), ("תאריך",), ("תאריך", "ביצוע")),
+    "settlement_date": (("settlement", "date"), ("settle", "date"), ("value", "date"), ("תאריך", "ערך")),
+    "action": (("transaction", "type"), ("activity", "type"), ("action",), ("operation",), ("side",), ("פעולה",), ("סוג", "פעולה")),
+    "quantity": (("quantity",), ("qty",), ("units",), ("shares",), ("כמות",), ("יחידות",), ("מניות",)),
+    "price": (("unit", "price"), ("trade", "price"), ("execution", "price"), ("price",), ("שער",), ("מחיר",)),
+    "net_amount": (("net", "amount"), ("gross", "amount"), ("gross", "proceeds"), ("amount",), ("proceeds",), ("תמורה",), ("סכום",), ("שווי",)),
+    "security_id": (("security", "id"), ("security", "number"), ("security", "code"), ("isin",), ("cusip",), ("מספר", "נייר"), ("מספר", "בורסה")),
+    "symbol": (("ticker",), ("symbol",), ("ticker", "symbol"), ("סימול",), ("קוד",)),
+    "security_name": (("security", "name"), ("instrument", "name"), ("description",), ("name",), ("שם", "נייר"), ("תיאור",)),
+    "currency": (("trade", "currency"), ("currency",), ("currency", "code"), ("trade", "ccy"), ("ccy",), ("מטבע",)),
+    "report_currency": (("report", "currency"), ("statement", "currency"), ("report", "ccy"), ("מטבע", "דיווח")),
+    "commission": (("broker", "fee"), ("transaction", "fee"), ("commission",), ("עמלה",), ("עמלות",)),
+    "fees": (("other", "fees"), ("exchange", "fee"), ("fees",), ("charges",), ("חיובים",)),
+    "bank_reported_gain_loss": (("realized", "pnl"), ("realized", "p", "l"), ("gain", "loss"), ("profit", "loss"), ("רווח", "הפסד")),
 }
 
 
@@ -279,6 +375,14 @@ def _match_template(normalized_map: dict[str, str], templates: list[ReportTempla
 
 
 def _match_generic(normalized_map: dict[str, str]) -> HeaderDetection | None:
+    field_map, field_scores = _collect_generic_matches(normalized_map)
+    if not _generic_fields_are_sufficient(field_map):
+        return None
+    confidence = sum(field_scores.values()) / max(len(field_scores), 1)
+    return HeaderDetection(0, "generic", field_map, confidence, template_name="")
+
+
+def _collect_generic_matches(normalized_map: dict[str, str]) -> tuple[dict[str, str], dict[str, float]]:
     used_headers: set[str] = set()
     field_scores: dict[str, float] = {}
     field_map: dict[str, str] = {}
@@ -286,13 +390,13 @@ def _match_generic(normalized_map: dict[str, str]) -> HeaderDetection | None:
         "trade_date",
         "action",
         "quantity",
-        "security_id",
         "symbol",
         "security_name",
-        "net_amount",
-        "price",
+        "security_id",
         "currency",
         "report_currency",
+        "net_amount",
+        "price",
         "commission",
         "fees",
         "reference",
@@ -306,19 +410,39 @@ def _match_generic(normalized_map: dict[str, str]) -> HeaderDetection | None:
         for normalized_header, actual_header in normalized_map.items():
             if normalized_header in used_headers:
                 continue
-            score = max(_header_similarity(normalized_header, _normalize_header_text(alias)) for alias in aliases)
+            score = _generic_header_score(field_name, normalized_header, aliases)
             if score > best_score:
                 best_header = actual_header
                 best_score = score
-        if best_header and best_score >= 0.74:
+        threshold = 0.7 if field_name in {"trade_date", "action", "quantity", "price", "net_amount"} else 0.66
+        if best_header and best_score >= threshold:
             field_map[field_name] = best_header
             used_headers.add(_normalize_header_text(best_header))
             field_scores[field_name] = best_score
+    return field_map, field_scores
 
-    if not _generic_fields_are_sufficient(field_map):
-        return None
-    confidence = sum(field_scores.values()) / max(len(field_scores), 1)
-    return HeaderDetection(0, "generic", field_map, confidence, template_name="")
+
+def _generic_header_score(field_name: str, normalized_header: str, aliases: tuple[str, ...]) -> float:
+    alias_score = max(_header_similarity(normalized_header, _normalize_header_text(alias)) for alias in aliases)
+    header_tokens = _tokens(normalized_header)
+    keyword_score = _keyword_match_score(header_tokens, GENERIC_FIELD_KEYWORDS.get(field_name, ()))
+    return max(alias_score, keyword_score)
+
+
+def _keyword_match_score(header_tokens: set[str], keyword_groups: tuple[tuple[str, ...], ...]) -> float:
+    best_score = 0.0
+    for group in keyword_groups:
+        normalized_group = tuple(_normalize_header_text(token) for token in group if _normalize_header_text(token))
+        if not normalized_group:
+            continue
+        group_tokens = set(normalized_group)
+        overlap = len(header_tokens & group_tokens) / max(len(group_tokens), 1)
+        if group_tokens.issubset(header_tokens):
+            score = 0.86 if len(group_tokens) == 1 else 0.92
+        else:
+            score = overlap * (0.88 if len(group_tokens) == 1 else 0.9)
+        best_score = max(best_score, score)
+    return best_score
 
 
 def _generic_fields_are_sufficient(field_map: dict[str, str]) -> bool:
@@ -457,6 +581,20 @@ def _parse_generic(df: pd.DataFrame, source_file: str, sheet: str, detection: He
             continue
 
         action_type = _map_generic_action(action_raw, quantity, net_amount)
+        if action_type == ActionType.IGNORE:
+            normalized_action = _normalize_header_text(action_raw)
+            if any(token in normalized_action for token in ("consolidation", "איחוד")):
+                action_type = ActionType.SPLIT_OUT
+            elif any(token in normalized_action for token in ("stock split", "פיצול")):
+                action_type = ActionType.SPLIT_IN
+            elif any(token in normalized_action for token in ("dividend", "interest", "coupon", "דיבידנד", "ריבית")):
+                action_type = ActionType.CASH
+            elif quantity > 0 and net_amount < 0:
+                action_type = ActionType.BUY
+            elif quantity < 0 and net_amount > 0:
+                action_type = ActionType.SELL
+            elif quantity:
+                action_type = ActionType.UNKNOWN
         currency = _normalize_currency(_value(row, detection.column_map, "currency"))
         report_currency = _normalize_currency(_value(row, detection.column_map, "report_currency"))
         if report_currency == "UNKNOWN":
@@ -594,7 +732,12 @@ def _normalize_header_text(value: Any) -> str:
     text = str(value).strip().lower()
     for marker in ('"', "'", "׳", "״"):
         text = text.replace(marker, "")
+    text = re.sub(r"[\(\)\[\]\{\}/\\|:;,\.\-_]+", " ", text)
     return " ".join(text.split())
+
+
+def _tokens(value: Any) -> set[str]:
+    return {token for token in _normalize_header_text(value).split() if token}
 
 
 def _value(row: pd.Series, column_map: dict[str, str], field_name: str, default: Any = None) -> Any:
@@ -681,10 +824,14 @@ def _header_similarity(left: str, right: str) -> float:
 
 def _best_header_candidate_index(rows: list[tuple[Any, ...]]) -> int | None:
     best_index: int | None = None
-    best_score = 0
+    best_score = -1.0
     for index, row in enumerate(rows[:25], start=1):
         headers = [_clean_header(value) for value in row if _clean_header(value)]
-        score = len(headers)
+        normalized_map = {_normalize_header_text(header): header for header in headers}
+        field_map, field_scores = _collect_generic_matches(normalized_map)
+        recognized_fields = len(field_map)
+        required_hits = sum(1 for field in GENERIC_REQUIRED_FIELDS if field in field_map)
+        score = required_hits * 5 + recognized_fields * 2 + sum(field_scores.values()) + min(len(headers), 12) * 0.08
         if score > best_score:
             best_score = score
             best_index = index

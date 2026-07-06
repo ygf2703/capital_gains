@@ -78,6 +78,43 @@ class ParserHeaderTests(unittest.TestCase):
         self.assertAlmostEqual(transactions[0].price, 200.0)
         self.assertFalse([issue for issue in issues if issue.severity == "error"])
 
+    def test_generic_header_detection_prefers_recognizable_header_row(self) -> None:
+        with TemporaryDirectory() as tmp:
+            workbook_path = Path(tmp) / "generic_header_priority.xlsx"
+            workbook = Workbook()
+            sheet = workbook.active
+            sheet.title = "Report"
+            sheet.append(["Summary", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight"])
+            sheet.append(["Date Executed", "Activity Type", "Security / Ticker", "Units / Shares", "Gross Proceeds", "Trade CCY"])
+            sheet.append(["2024-03-01", "Sell", "MSFT", -3, 650.0, "USD"])
+            workbook.save(workbook_path)
+
+            transactions, issues = parse_workbook(workbook_path)
+
+        self.assertEqual(len(transactions), 1)
+        self.assertEqual(transactions[0].broker, "Generic")
+        self.assertEqual(transactions[0].symbol, "MSFT")
+        self.assertEqual(transactions[0].currency, "USD")
+        self.assertFalse([issue for issue in issues if issue.severity == "error"])
+
+    def test_generic_parser_infers_buy_sell_from_quantity_and_amount_signs(self) -> None:
+        with TemporaryDirectory() as tmp:
+            workbook_path = Path(tmp) / "generic_inferred_action.xlsx"
+            workbook = Workbook()
+            sheet = workbook.active
+            sheet.title = "Activity"
+            sheet.append(["Activity Date", "Movement Type", "Ticker Symbol", "Share Quantity", "Transaction Amount"])
+            sheet.append(["2024-03-01", "Booked", "AAPL", 4, -720.0])
+            sheet.append(["2024-03-02", "Booked", "AAPL", -2, 390.0])
+            workbook.save(workbook_path)
+
+            transactions, issues = parse_workbook(workbook_path)
+
+        self.assertEqual(len(transactions), 2)
+        self.assertEqual(transactions[0].action_type.value, "BUY")
+        self.assertEqual(transactions[1].action_type.value, "SELL")
+        self.assertFalse([issue for issue in issues if issue.severity == "error"])
+
 
 if __name__ == "__main__":
     unittest.main()

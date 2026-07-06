@@ -323,9 +323,9 @@ class CapitalGainsApp(BaseWindow):
         panel.grid_rowconfigure(6, weight=1)
         panel.grid_columnconfigure(0, weight=1)
 
-        label_text = "גררי לכאן קבצי אקסל או לחצי על בחירת קבצים"
+        label_text = "גרור לכאן קבצי אקסל או לחץ על בחירת קבצים"
         if DND_FILES is None:
-            label_text = "בחרי דוחות אקסל לניתוח"
+            label_text = "בחר דוחות אקסל לניתוח"
         ctk.CTkLabel(
             panel,
             text=ui_text(label_text),
@@ -384,7 +384,7 @@ class CapitalGainsApp(BaseWindow):
 
         ctk.CTkLabel(
             panel,
-            text=ui_text("שאלי את הדוח"),
+            text=ui_text("שאל את הדוח"),
             font=ui_font(16, "bold"),
             text_color=PALETTE["text"],
             anchor="e",
@@ -417,7 +417,7 @@ class CapitalGainsApp(BaseWindow):
         )
         question_entry.grid(row=1, column=0, padx=(12, 8), pady=(0, 12), sticky="ew")
         question_entry.bind("<Return>", lambda _event: self.ask_report_question())
-        self._button(chat_frame, "שאלי", self.ask_report_question, width=84).grid(row=1, column=1, padx=(0, 12), pady=(0, 12))
+        self._button(chat_frame, "שאל", self.ask_report_question, width=84).grid(row=1, column=1, padx=(0, 12), pady=(0, 12))
 
         suggestions = ctk.CTkFrame(chat_frame, fg_color="transparent")
         suggestions.grid(row=2, column=0, columnspan=2, padx=12, pady=(0, 12), sticky="ew")
@@ -718,7 +718,7 @@ class CapitalGainsApp(BaseWindow):
 
     def configure_columns(self) -> None:
         if not self.files:
-            messagebox.showwarning(ui_title("אין קבצים"), ui_text("בחרי קודם קובץ אקסל אחד לפחות."))
+            messagebox.showwarning(ui_title("אין קבצים"), ui_text("בחר קודם קובץ אקסל אחד לפחות."))
             return
         previews = self.workflow.preview_current_headers()
         if not previews:
@@ -754,7 +754,7 @@ class CapitalGainsApp(BaseWindow):
 
     def add_files(self) -> None:
         selected = filedialog.askopenfilenames(
-            title=ui_title("בחרי דוחות אקסל"),
+            title=ui_title("בחר דוחות אקסל"),
             filetypes=[("קבצי אקסל", "*.xlsx *.xlsm *.xls"), ("כל הקבצים", "*.*")],
         )
         self._add_paths(selected)
@@ -807,7 +807,7 @@ class CapitalGainsApp(BaseWindow):
 
     def calculate_and_export(self) -> None:
         if not self.files:
-            messagebox.showwarning(ui_title("אין קבצים"), ui_text("בחרי לפחות קובץ אקסל אחד."))
+            messagebox.showwarning(ui_title("אין קבצים"), ui_text("בחר לפחות קובץ אקסל אחד."))
             return
         try:
             preparation = self.workflow.prepare_analysis(self.exchange_date_var.get())
@@ -1477,7 +1477,7 @@ class CorrectionsDialog(ctk.CTkToplevel):
 
         ctk.CTkLabel(
             self,
-            text=ui_text("נמצאו שורות עם נתון חסר. בחרי שורה, הזיני ערך מתוקן ושמרי."),
+            text=ui_text("נמצאו שורות עם נתון חסר. בחר שורה, הזן ערך מתוקן ושמור."),
             font=ui_font(17, "bold"),
             text_color=PALETTE["text"],
         ).pack(anchor="e", padx=18, pady=(18, 8))
@@ -1584,7 +1584,7 @@ class CorrectionsDialog(ctk.CTkToplevel):
 
     def _save_current(self) -> None:
         if self.selected_issue is None:
-            messagebox.showwarning(ui_title("לא נבחרה שורה"), ui_text("בחרי שורה לתיקון."))
+            messagebox.showwarning(ui_title("לא נבחרה שורה"), ui_text("בחר שורה לתיקון."))
             return
         value = self.value_entry.get().strip()
         if not value:
