@@ -715,10 +715,13 @@ class CapitalGainsApp(BaseWindow):
         self.dashboard_note_label: ctk.CTkLabel | None = None
         self.question_var = tk.StringVar()
         self.chat_box: ctk.CTkTextbox | None = None
+        self.suggestion_buttons: list[ctk.CTkButton] = []
         self.login_dialog: LoginDialog | None = None
         self.account_dialog: AccountSettingsDialog | None = None
 
         self._build_ui()
+        self._reset_chat_box()
+        self._refresh_question_suggestions()
 
     @property
     def files(self) -> list[Path]:
@@ -973,7 +976,6 @@ class CapitalGainsApp(BaseWindow):
             wrap="word",
         )
         self.chat_box.grid(row=0, column=0, columnspan=2, padx=12, pady=(12, 8), sticky="nsew")
-        self.chat_box.insert("1.0", ui_text("אחרי ניתוח הקובץ אפשר לשאול כאן על רווחים, תנועות, פוזיציות פתוחות, התראות ושער הדולר."))
         self.chat_box.configure(state="disabled")
 
         question_entry = ctk.CTkEntry(
@@ -990,28 +992,17 @@ class CapitalGainsApp(BaseWindow):
 
         suggestions = ctk.CTkFrame(chat_frame, fg_color="transparent")
         suggestions.grid(row=2, column=0, columnspan=2, padx=12, pady=(0, 12), sticky="ew")
-        suggestions.grid_columnconfigure((0, 1, 2), weight=1)
-        self._button(
-            suggestions,
-            "מה הרווח הכולל?",
-            lambda: self._ask_suggested_question("מה הרווח הכולל?"),
-            fg_color=PALETTE["secondary"],
-            width=140,
-        ).grid(row=0, column=0, padx=(0, 6), sticky="ew")
-        self._button(
-            suggestions,
-            "מה הנייר הכי בולט?",
-            lambda: self._ask_suggested_question("מה הנייר הכי בולט בדוח?"),
-            fg_color=PALETTE["secondary"],
-            width=140,
-        ).grid(row=0, column=1, padx=6, sticky="ew")
-        self._button(
-            suggestions,
-            "מה פתוח כרגע?",
-            lambda: self._ask_suggested_question("מה הפוזיציות הפתוחות?"),
-            fg_color=PALETTE["secondary"],
-            width=140,
-        ).grid(row=0, column=2, padx=(6, 0), sticky="ew")
+        suggestions.grid_columnconfigure((0, 1), weight=1)
+        for index in range(4):
+            button = self._button(
+                suggestions,
+                f"שאלה {index + 1}",
+                lambda: None,
+                fg_color=PALETTE["secondary"],
+                width=180,
+            )
+            button.grid(row=index // 2, column=index % 2, padx=6, pady=6, sticky="ew")
+            self.suggestion_buttons.append(button)
 
     def _build_dashboard_panel(self, parent: ctk.CTkFrame) -> None:
         dashboard = ctk.CTkScrollableFrame(parent, corner_radius=10, fg_color=PALETTE["panel"], border_width=1, border_color=PALETTE["line"])
@@ -1321,6 +1312,30 @@ class CapitalGainsApp(BaseWindow):
         self.question_var.set(question)
         self.ask_report_question()
 
+    def _chat_intro_message(self) -> str:
+        return "אחרי ניתוח הקובץ אפשר לשאול כאן על רווחים, פילוח פעילות, פוזיציות פתוחות, אירועי הון ונתונים שלא הוצגו במסך הראשי."
+
+    def _chat_ready_message(self) -> str:
+        return "הניתוח הושלם. אפשר לשאול עכשיו על תובנות מרכזיות, חריגות, השוואות בין ניירות, שער הדולר ונתונים נוספים שנמצאים מאחורי הדשבורד."
+
+    def _reset_chat_box(self, message: str | None = None) -> None:
+        if self.chat_box is None:
+            return
+        self.chat_box.configure(state="normal")
+        self.chat_box.delete("1.0", "end")
+        self.chat_box.insert("1.0", ui_text(message or self._chat_intro_message()))
+        self.chat_box.configure(state="disabled")
+
+    def _refresh_question_suggestions(self) -> None:
+        questions = self.workflow.suggest_questions()
+        for index, button in enumerate(self.suggestion_buttons):
+            if index < len(questions):
+                question = questions[index]
+                button.configure(text=ui_text(question), command=lambda value=question: self._ask_suggested_question(value))
+                button.grid()
+            else:
+                button.grid_remove()
+
     def _append_chat_entry(self, role: str, text: str) -> None:
         if self.chat_box is None:
             return
@@ -1342,6 +1357,9 @@ class CapitalGainsApp(BaseWindow):
         self.workflow.clear_files()
         self.file_list.delete(0, tk.END)
         self.status.configure(text=ui_text("הרשימה נוקתה"))
+        self.question_var.set("")
+        self._reset_chat_box()
+        self._refresh_question_suggestions()
         self._draw_empty_dashboard()
 
     def fetch_exchange_rate(self) -> None:
@@ -1484,7 +1502,8 @@ class CapitalGainsApp(BaseWindow):
             self._set_exchange_rate(result.exchange_rate)
         self._update_dashboard(result)
         self.status.configure(text=ui_text(f"הדוח נשמר: {path}"))
-        self._append_chat_entry("מערכת", "הניתוח הושלם. אפשר לשאול עכשיו שאלות על הדוח באזור השיחה.")
+        self._reset_chat_box(self._chat_ready_message())
+        self._refresh_question_suggestions()
         extra = f"\nשער דולר: {result.exchange_rate.rate:.4f}" if result.exchange_rate else ""
         if exchange_error:
             extra += f"\nלא נטען שער דולר: {exchange_error}"

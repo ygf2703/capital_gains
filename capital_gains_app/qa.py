@@ -6,7 +6,7 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass
 from datetime import date, datetime
 
-from .dashboard import build_dashboard_summary
+from .dashboard import DashboardSummary, build_dashboard_summary
 from .models import CalculationResult, Lot, RealizedMatch, Transaction
 
 
@@ -15,6 +15,49 @@ class QAContext:
     security_name: str = ""
     start_date: date | None = None
     end_date: date | None = None
+
+
+def suggested_report_questions(result: CalculationResult | None) -> list[str]:
+    generic = [
+        "תן לי 5 תובנות מרכזיות",
+        "מה הרווח הכולל?",
+        "אילו פוזיציות נשארו פתוחות?",
+        "מה עוד חשוב לבדוק מעבר למסך הראשי?",
+    ]
+    if result is None:
+        return generic
+
+    summary = build_dashboard_summary(result)
+    suggestions: list[str] = []
+
+    def add(question: str) -> None:
+        if question and question not in suggestions:
+            suggestions.append(question)
+
+    add("תן לי 5 תובנות מרכזיות")
+    if summary.gain_by_currency:
+        add("מה הרווח הכולל?")
+    if result.open_lots:
+        add("אילו פוזיציות נשארו פתוחות?")
+    if result.issues or any(row.inferred for row in result.realized):
+        add("אילו חריגות או נתונים חסרים קיימים?")
+    if result.corporate_actions:
+        add("היו אירועי הון בקובץ?")
+
+    comparison = _build_comparison_prompt(result)
+    if comparison:
+        add(comparison)
+
+    labels = _all_security_labels(result)
+    if len(labels) == 1:
+        add(f"מה מצב הנייר {labels[0]}?")
+
+    add("תן לי פילוח פעילות לפי סוגי פעולה")
+    if result.exchange_rate:
+        add("איזה שער דולר שימש בחישוב?")
+    add("מה עוד חשוב לבדוק מעבר למסך הראשי?")
+
+    return suggestions[:6] or generic
 
 
 def answer_report_question(result: CalculationResult | None, question: str) -> str:
@@ -31,41 +74,54 @@ def answer_report_question(result: CalculationResult | None, question: str) -> s
         return _answer_comparison(result, comparison[0], comparison[1])
 
     context = _extract_context(result, normalized)
+    if _contains_any(normalized, ("תובנ", "insight", "takeaway", "מרכזי", "מה חשוב")):
+        return _answer_key_insights(summary)
+    if _contains_any(normalized, ("לא הוצג", "לא מוצג", "חסר", "missing", "מעבר למסך", "מה עוד", "עוד כדאי", "עוד חשוב")):
+        return _answer_hidden_data(result, summary, context)
+    if _contains_any(normalized, ("אירוע הון", "אירועי הון", "איחוד", "פיצול", "reverse split", "split", "corporate")):
+        return _answer_corporate_actions(result, context)
     if _looks_like_anomaly_question(normalized):
         return _answer_anomaly(result, context)
-    if any(token in normalized for token in ("התרא", "שגיא", "issue", "warning", "בעיה", "חריג")):
+    if _contains_any(normalized, ("התרא", "שגיא", "issue", "warning", "בעיה", "חריג")):
         return _answer_issues(result, context)
-    if any(token in normalized for token in ("פתוח", "open", "פוזיצ")):
+    if _contains_any(normalized, ("פתוח", "open", "פוזיצ")):
         return _answer_open_positions(result, context)
-    if any(token in normalized for token in ("רווח", "הפסד", "gain", "profit", "loss")):
+    if _contains_any(normalized, ("רווח", "הפסד", "gain", "profit", "loss")):
         return _answer_gain(result, summary, context)
-    if any(token in normalized for token in ("תנוע", "transaction", "עסק", "מכירות", "קניות")):
+    if _contains_any(normalized, ("פילוח", "פירוט", "breakdown", "activity", "פעיל", "הרכב")):
+        return _answer_activity(result, context)
+    if _contains_any(normalized, ("תנוע", "transaction", "עסק", "מכירות", "קניות")):
         return _answer_transaction_count(result, context)
-    if any(token in normalized for token in ("דולר", "usd", "שער", "exchange")):
+    if _contains_any(normalized, ("דולר", "usd", "שער", "exchange")):
         return _answer_exchange_rate(result)
-    if any(token in normalized for token in ("פיפו", "fifo", "מימוש")):
+    if _contains_any(normalized, ("פיפו", "fifo", "מימוש")):
         return _answer_fifo_rows(result, context)
-    if any(token in normalized for token in ("נייר", "security", "מניה", "ticker")):
+    if _contains_any(normalized, ("נייר", "security", "מניה", "ticker")):
         return _answer_security_overview(result, summary, context)
-    if any(token in normalized for token in ("תובנ", "summary", "סיכום")):
+    if _contains_any(normalized, ("summary", "סיכום")):
         return _default_answer(summary, result)
 
     return (
         _default_answer(summary, result)
-        + " אפשר לשאול גם על נייר מסוים, טווח תאריכים, השוואה בין שני ניירות, פוזיציות פתוחות או חריגות."
+        + " אפשר לשאול גם על נייר מסוים, טווח תאריכים, השוואה בין שני ניירות, פוזיציות פתוחות, חריגות, פילוח פעילות או נתונים שלא הוצגו במסך הראשי."
     )
 
 
-def _answer_gain(result: CalculationResult, summary, context: QAContext) -> str:
+def _answer_key_insights(summary: DashboardSummary) -> str:
+    lines = [f"{index}. {insight}" for index, insight in enumerate(summary.key_insights, start=1)]
+    return "5 תובנות מרכזיות:\n" + "\n".join(lines)
+
+
+def _answer_gain(result: CalculationResult, summary: DashboardSummary, context: QAContext) -> str:
     realized = _filtered_realized(result, context)
     if context.security_name or context.start_date or context.end_date:
         if not realized:
             return f"לא מצאתי רווח/הפסד ממומש עבור {_context_label(context)}."
         totals = _gain_by_currency(realized)
-        totals_text = ", ".join(f"{currency}: {value:,.2f}" for currency, value in totals.items())
+        totals_text = _format_currency_totals(totals.items())
         return f"הרווח/ההפסד הממומש עבור {_context_label(context)} הוא {totals_text}."
 
-    totals = ", ".join(f"{currency}: {value:,.2f}" for currency, value in summary.gain_by_currency) or "אין רווח ממומש"
+    totals = _format_currency_totals(summary.gain_by_currency) or "אין רווח ממומש"
     return f"סך הרווח/ההפסד הממומש לפי פיפו הוא {totals}."
 
 
@@ -82,7 +138,32 @@ def _answer_transaction_count(result: CalculationResult, context: QAContext) -> 
     )
 
 
-def _answer_security_overview(result: CalculationResult, summary, context: QAContext) -> str:
+def _answer_activity(result: CalculationResult, context: QAContext) -> str:
+    transactions = _filtered_transactions(result, context)
+    if not transactions:
+        return f"לא מצאתי תנועות עבור {_context_label(context)}."
+
+    action_counts: Counter[str] = Counter(tx.action_type.value for tx in transactions)
+    security_counts: Counter[str] = Counter(_transaction_label(tx) for tx in transactions)
+    breakdown = ", ".join(
+        f"{count:,} {_action_label(action)}"
+        for action, count in sorted(action_counts.items(), key=lambda item: (-item[1], item[0]))
+        if count
+    )
+    first_date = min(tx.trade_date for tx in transactions).date()
+    last_date = max(tx.trade_date for tx in transactions).date()
+    busiest = security_counts.most_common(1)[0] if security_counts else None
+
+    lines = [
+        f"פילוח הפעילות עבור {_context_label(context)}: {breakdown}.",
+        f"טווח הפעילות שנמצא: {first_date:%Y-%m-%d} עד {last_date:%Y-%m-%d}.",
+    ]
+    if busiest and not context.security_name:
+        lines.append(f"הנייר הפעיל ביותר בטווח הזה הוא {busiest[0]} עם {busiest[1]:,} תנועות.")
+    return " ".join(lines)
+
+
+def _answer_security_overview(result: CalculationResult, summary: DashboardSummary, context: QAContext) -> str:
     if context.security_name:
         transactions = _filtered_transactions(result, context)
         realized = _filtered_realized(result, context)
@@ -90,7 +171,7 @@ def _answer_security_overview(result: CalculationResult, summary, context: QACon
         if not transactions and not realized and not open_lots:
             return f"לא מצאתי נתונים עבור הנייר {context.security_name}."
         gain_totals = _gain_by_currency(realized)
-        gain_text = ", ".join(f"{currency}: {value:,.2f}" for currency, value in gain_totals.items()) or "אין רווח ממומש"
+        gain_text = _format_currency_totals(gain_totals.items()) or "אין רווח ממומש"
         open_qty = sum(lot.quantity for lot in open_lots)
         return (
             f"עבור {context.security_name} נמצאו {len(transactions):,} תנועות, "
@@ -115,14 +196,7 @@ def _answer_open_positions(result: CalculationResult, context: QAContext) -> str
 
 
 def _answer_issues(result: CalculationResult, context: QAContext) -> str:
-    issues = result.issues
-    if context.security_name:
-        issues = [
-            issue
-            for issue in issues
-            if context.security_name.lower() in str(issue.value or "").lower()
-            or context.security_name.lower() in issue.message.lower()
-        ]
+    issues = _filtered_issues(result, context)
     if not issues:
         return f"לא זוהו התראות או חריגות עבור {_context_label(context)}."
     sample = "; ".join(issue.message for issue in issues[:3])
@@ -202,13 +276,53 @@ def _answer_anomaly(result: CalculationResult, context: QAContext) -> str:
     return " ".join(insights) if insights else f"לא זיהיתי חריגה בולטת עבור {_context_label(context)}."
 
 
-def _default_answer(summary, result: CalculationResult) -> str:
+def _answer_hidden_data(result: CalculationResult, summary: DashboardSummary, context: QAContext) -> str:
+    issues = _filtered_issues(result, context)
+    inferred_rows = [row for row in _filtered_realized(result, context) if row.inferred]
+    open_lots = _filtered_open_lots(result, context)
+    corporate_actions = _filtered_corporate_actions(result, context)
+
+    lines: list[str] = []
+    if issues:
+        lines.append(f"יש {len(issues):,} התראות שכדאי לעבור עליהן ידנית.")
+    if inferred_rows:
+        lines.append(f"זוהו {len(inferred_rows):,} שורות FIFO עם עלות פתיחה מוסקת, ולכן כדאי לאמת את בסיס העלות.")
+    if corporate_actions:
+        lines.append(f"טופלו {len(corporate_actions):,} אירועי הון שלא מוצגים במלוא הפירוט בכרטיסי הסיכום.")
+    if open_lots:
+        lines.append(f"יש עוד {len(open_lots):,} פוזיציות פתוחות שאפשר לפרק לפי נייר וכמות.")
+    if len(summary.gain_by_currency) > 1 and not context.security_name:
+        lines.append(f"הרווחים מחולקים על פני {len(summary.gain_by_currency):,} מטבעות שונים.")
+    if result.exchange_rate and not context.security_name:
+        lines.append(
+            f"החישוב השתמש גם בשער דולר {result.exchange_rate.rate:.4f} שפורסם ב-{result.exchange_rate.published_date:%Y-%m-%d}."
+        )
+
+    if not lines:
+        return f"מעבר למסך הראשי לא זיהיתי כרגע שכבת מידע נוספת שחייבת תשומת לב עבור {_context_label(context)}."
+    return "מעבר לכרטיסים ולגרפים במסך, יש עוד מידע שכדאי לשים לב אליו: " + " ".join(lines)
+
+
+def _answer_corporate_actions(result: CalculationResult, context: QAContext) -> str:
+    actions = _filtered_corporate_actions(result, context)
+    if not actions:
+        return f"לא זוהו אירועי הון עבור {_context_label(context)}."
+
+    samples = []
+    for action in actions[:3]:
+        ratio_text = f"יחס {action.ratio:.4f}" if action.ratio else f"כמות {action.old_quantity:,.4f} -> {action.new_quantity:,.4f}"
+        samples.append(f"{action.action_date:%Y-%m-%d}: {_corporate_action_label(action.action_type)} ({ratio_text})")
+    details = "; ".join(samples)
+    return f"זוהו {len(actions):,} אירועי הון עבור {_context_label(context)}. דוגמאות: {details}."
+
+
+def _default_answer(summary: DashboardSummary, result: CalculationResult) -> str:
     lines = [
         f"נותחו {summary.total_transactions:,} תנועות על פני {summary.unique_securities:,} ניירות ערך.",
         f"נוצרו {summary.realized_rows:,} שורות FIFO ויש {len(result.open_lots):,} פוזיציות פתוחות.",
     ]
     if summary.gain_by_currency:
-        totals = ", ".join(f"{currency}: {value:,.2f}" for currency, value in summary.gain_by_currency)
+        totals = _format_currency_totals(summary.gain_by_currency)
         lines.append(f"רווח/הפסד ממומש: {totals}.")
     if result.issues:
         lines.append(f"יש גם {len(result.issues):,} התראות שכדאי לעבור עליהן.")
@@ -222,7 +336,7 @@ def _extract_context(result: CalculationResult, question: str) -> QAContext:
 
 
 def _extract_comparison_candidates(result: CalculationResult, question: str) -> tuple[str, str] | None:
-    if not any(token in question for token in ("השווה", "compare", "לעומת", "מול", "versus", "vs")):
+    if not _contains_any(question, ("השווה", "compare", "לעומת", "מול", "versus", "vs")):
         return None
     labels = _all_security_labels(result)
     matches = [label for label in labels if label.lower() in question]
@@ -299,6 +413,36 @@ def _filtered_open_lots(result: CalculationResult, context: QAContext) -> list[L
     return rows
 
 
+def _filtered_issues(result: CalculationResult, context: QAContext) -> list:
+    rows = result.issues
+    if context.security_name:
+        wanted = context.security_name.lower()
+        rows = [
+            issue
+            for issue in rows
+            if wanted in str(issue.value or "").lower() or wanted in issue.message.lower()
+        ]
+    return rows
+
+
+def _filtered_corporate_actions(result: CalculationResult, context: QAContext) -> list:
+    rows = result.corporate_actions
+    if context.security_name:
+        wanted = context.security_name.lower()
+        rows = [
+            row
+            for row in rows
+            if wanted in row.old_key.lower()
+            or wanted in row.new_key.lower()
+            or wanted in row.notes.lower()
+        ]
+    if context.start_date:
+        rows = [row for row in rows if row.action_date.date() >= context.start_date]
+    if context.end_date:
+        rows = [row for row in rows if row.action_date.date() <= context.end_date]
+    return rows
+
+
 def _gain_by_currency(rows: list[RealizedMatch]) -> dict[str, float]:
     totals: dict[str, float] = defaultdict(float)
     for row in rows:
@@ -316,8 +460,51 @@ def _all_security_labels(result: CalculationResult) -> list[str]:
     return sorted(labels, key=lambda item: (len(item), item), reverse=True)
 
 
+def _build_comparison_prompt(result: CalculationResult) -> str:
+    counts: Counter[str] = Counter(_transaction_label(tx) for tx in result.transactions)
+    labels = [label for label, _count in counts.most_common(2)]
+    if len(labels) == 2:
+        return f"השווה בין {labels[0]} ל-{labels[1]}"
+    return ""
+
+
 def _looks_like_anomaly_question(question: str) -> bool:
-    return any(token in question for token in ("הכי", "בולט", "חריג", "גדול", "largest", "biggest", "top"))
+    return _contains_any(question, ("הכי", "בולט", "חריג", "גדול", "largest", "biggest", "top"))
+
+
+def _contains_any(text: str, tokens: tuple[str, ...]) -> bool:
+    return any(token in text for token in tokens)
+
+
+def _format_currency_totals(rows) -> str:
+    return ", ".join(f"{currency}: {value:,.2f}" for currency, value in rows)
+
+
+def _action_label(action: str) -> str:
+    mapping = {
+        "BUY": "קניות",
+        "SELL": "מכירות",
+        "TRANSFER_IN": "העברות פנימה",
+        "TRANSFER_OUT": "העברות החוצה",
+        "SPLIT_IN": "פיצולים פנימה",
+        "SPLIT_OUT": "פיצולים החוצה",
+        "CAPITAL_REDUCTION": "הפחתות הון",
+        "EXPIRE": "פקיעות",
+        "CASH": "תנועות מזומן",
+        "IGNORE": "שורות מסוננות",
+        "UNKNOWN": "שורות לא מזוהות",
+    }
+    return mapping.get(action, action)
+
+
+def _corporate_action_label(action_type: str) -> str:
+    normalized = action_type.replace("_", " ").strip().lower()
+    mapping = {
+        "split": "פיצול",
+        "reverse split": "איחוד הון",
+        "capital reduction": "הפחתת הון",
+    }
+    return mapping.get(normalized, action_type)
 
 
 def _transaction_label(tx: Transaction) -> str:

@@ -16,6 +16,7 @@ from .services import (
     parse_reports,
     preview_report_headers,
     save_generic_report_template,
+    suggest_questions,
 )
 from .user_identity import UserIdentity, load_user_identity
 
@@ -151,3 +152,6 @@ class CapitalGainsWorkflow:
 
     def answer_question(self, question: str) -> str:
         return answer_question(self.state.result, question)
+
+    def suggest_questions(self) -> list[str]:
+        return suggest_questions(self.state.result)

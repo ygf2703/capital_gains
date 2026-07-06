@@ -27,6 +27,8 @@ def build_dashboard_summary(result: CalculationResult) -> DashboardSummary:
     proceeds_by_currency: dict[str, float] = defaultdict(float)
     gain_by_security: dict[tuple[str, str], float] = defaultdict(float)
     action_counter: Counter[str] = Counter()
+    activity_by_security: Counter[str] = Counter()
+    open_quantity_by_security: dict[str, float] = defaultdict(float)
     security_keys: set[str] = set()
     inferred_rows = 0
 
@@ -43,6 +45,15 @@ def build_dashboard_summary(result: CalculationResult) -> DashboardSummary:
     for row in result.transactions:
         action_counter[row.action_type.value] += 1
         security_keys.add(row.inventory_key)
+        label = row.symbol or row.security_name or row.inventory_key
+        activity_by_security[label] += 1
+
+    for row in result.open_lots:
+        label = row.symbol or row.security_name or row.security_key
+        open_quantity_by_security[label] += row.quantity
+
+    largest_open_position = max(open_quantity_by_security.items(), key=lambda item: abs(item[1])) if open_quantity_by_security else None
+    most_active_security = activity_by_security.most_common(1)[0] if activity_by_security else None
 
     top_securities = sorted(
         ((label, currency, value) for (label, currency), value in gain_by_security.items()),
@@ -59,6 +70,8 @@ def build_dashboard_summary(result: CalculationResult) -> DashboardSummary:
         gain_by_currency=sorted(gain_by_currency.items()),
         proceeds_by_currency=sorted(proceeds_by_currency.items()),
         top_securities=top_securities,
+        largest_open_position=largest_open_position,
+        most_active_security=most_active_security,
     )
 
     return DashboardSummary(
@@ -87,6 +100,8 @@ def _build_key_insights(
     gain_by_currency: list[tuple[str, float]],
     proceeds_by_currency: list[tuple[str, float]],
     top_securities: list[tuple[str, str, float]],
+    largest_open_position: tuple[str, float] | None,
+    most_active_security: tuple[str, int] | None,
 ) -> list[str]:
     insights: list[str] = []
 
@@ -108,7 +123,11 @@ def _build_key_insights(
     else:
         insights.append("אין עדיין נייר בולט ברווח או הפסד, כי אין מכירות ממומשות.")
 
-    if proceeds_by_currency:
+    if largest_open_position:
+        insights.append(
+            f"הפוזיציה הפתוחה הגדולה ביותר כרגע היא {largest_open_position[0]} עם כמות {largest_open_position[1]:,.4f}."
+        )
+    elif proceeds_by_currency:
         largest_proceeds = max(proceeds_by_currency, key=lambda item: abs(item[1]))
         insights.append(f"עיקר התמורה ממכירות נרשמה במטבע {largest_proceeds[0]}: {_money(largest_proceeds[1])}.")
     else:
@@ -124,9 +143,12 @@ def _build_key_insights(
         insights.append("לא זוהו התראות או חריגים משמעותיים בחישוב.")
 
     if unique_securities == 1:
-        insights.append(f"הדוח מתמקד בנייר ערך אחד בלבד, עם {total_transactions:,} תנועות ו-{open_lots:,} פוזיציות פתוחות.")
+        tail = f"הדוח מתמקד בנייר ערך אחד בלבד, עם {total_transactions:,} תנועות ו-{open_lots:,} פוזיציות פתוחות."
     else:
-        insights.append(f"הדוח כולל {unique_securities:,} ניירות ערך, {total_transactions:,} תנועות ו-{open_lots:,} פוזיציות פתוחות.")
+        tail = f"הדוח כולל {unique_securities:,} ניירות ערך, {total_transactions:,} תנועות ו-{open_lots:,} פוזיציות פתוחות."
+    if most_active_security:
+        tail += f" הנייר הפעיל ביותר הוא {most_active_security[0]} עם {most_active_security[1]:,} תנועות."
+    insights.append(tail)
 
     return insights[:5]
 

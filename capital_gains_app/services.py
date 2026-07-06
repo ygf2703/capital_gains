@@ -9,7 +9,7 @@ from .exporter import export_result
 from .fifo import calculate_fifo
 from .models import CalculationResult, Transaction, ValidationIssue
 from .parsers import HeaderPreview, inspect_workbook_headers, parse_workbooks
-from .qa import answer_report_question
+from .qa import answer_report_question, suggested_report_questions
 from .report_templates import build_report_template, save_report_template
 
 
@@ -62,3 +62,7 @@ def save_generic_report_template(name: str, field_map: dict[str, str]) -> None:
 
 def answer_question(result: CalculationResult | None, question: str) -> str:
     return answer_report_question(result, question)
+
+
+def suggest_questions(result: CalculationResult | None) -> list[str]:
+    return suggested_report_questions(result)
