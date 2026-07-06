@@ -9,15 +9,15 @@ from tkinter import filedialog, messagebox, ttk
 
 import customtkinter as ctk
 
+from .application import AnalysisPreparation, CapitalGainsWorkflow, ExportOutcome
 from .auth import AuthConfigurationError, AuthSession, GoogleAuthError, GoogleAuthService
 from .dashboard import build_dashboard_summary
-from .exchange_rates import fetch_usd_ils_rate_one_month_back, parse_user_date
-from .exporter import export_result
+from .exchange_rates import parse_user_date
 from .models import CalculationResult, ExchangeRateSnapshot, Transaction, ValidationIssue
 from .parsers import HeaderPreview, _normalize_header_text
-from .services import answer_question, calculate_analysis, parse_reports, preview_report_headers, save_generic_report_template
+from .services import save_generic_report_template
 from .ui_text import ASSISTANT_FONT_FAMILY, load_assistant_font, ui_font, ui_text, ui_title
-from .user_identity import UserIdentity, greeting_for_user, load_user_identity
+from .user_identity import UserIdentity, greeting_for_user
 
 try:
     from tkinterdnd2 import DND_FILES, TkinterDnD
@@ -124,12 +124,7 @@ class CapitalGainsApp(BaseWindow):
         self.background.place(x=0, y=0, relwidth=1, relheight=1)
         self.background.tk.call("lower", self.background._w)
 
-        self.files: list[Path] = []
-        self.last_result: CalculationResult | None = None
-        self.last_exchange_rate: ExchangeRateSnapshot | None = None
-        self.auth_service = GoogleAuthService()
-        self.auth_session: AuthSession = self.auth_service.load_session()
-        self.user_identity: UserIdentity = self.auth_session.identity if self.auth_session.email else load_user_identity()
+        self.workflow = CapitalGainsWorkflow()
         self.exchange_date_var = tk.StringVar(value=date.today().isoformat())
         self.kpi_labels: dict[str, ctk.CTkLabel] = {}
         self.insight_labels: list[ctk.CTkLabel] = []
@@ -141,6 +136,46 @@ class CapitalGainsApp(BaseWindow):
         self.chat_box: ctk.CTkTextbox | None = None
 
         self._build_ui()
+
+    @property
+    def files(self) -> list[Path]:
+        return self.workflow.state.files
+
+    @property
+    def last_result(self) -> CalculationResult | None:
+        return self.workflow.state.result
+
+    @last_result.setter
+    def last_result(self, value: CalculationResult | None) -> None:
+        self.workflow.state.result = value
+
+    @property
+    def last_exchange_rate(self) -> ExchangeRateSnapshot | None:
+        return self.workflow.state.exchange_rate
+
+    @last_exchange_rate.setter
+    def last_exchange_rate(self, value: ExchangeRateSnapshot | None) -> None:
+        self.workflow.state.exchange_rate = value
+
+    @property
+    def auth_session(self) -> AuthSession:
+        return self.workflow.state.auth_session
+
+    @auth_session.setter
+    def auth_session(self, value: AuthSession) -> None:
+        self.workflow.state.auth_session = value
+
+    @property
+    def user_identity(self) -> UserIdentity:
+        return self.workflow.state.user_identity
+
+    @user_identity.setter
+    def user_identity(self, value: UserIdentity) -> None:
+        self.workflow.state.user_identity = value
+
+    @property
+    def auth_service(self) -> GoogleAuthService:
+        return self.workflow.auth_service
 
     def _build_ui(self) -> None:
         self.grid_columnconfigure(0, weight=1)
@@ -487,9 +522,7 @@ class CapitalGainsApp(BaseWindow):
 
     def toggle_google_auth(self) -> None:
         if self.auth_session.connected and self.auth_session.email:
-            self.auth_service.sign_out()
-            self.auth_session = AuthSession()
-            self.user_identity = load_user_identity()
+            self.workflow.sign_out()
             self.status.configure(text=ui_text("ההתנתקות מ-Google הושלמה"))
             self._refresh_identity_ui()
             return
@@ -506,7 +539,7 @@ class CapitalGainsApp(BaseWindow):
 
     def _google_sign_in_worker(self) -> None:
         try:
-            session = self.auth_service.sign_in()
+            session = self.workflow.sign_in()
         except (AuthConfigurationError, GoogleAuthError) as exc:
             self.after(0, lambda: self._handle_google_sign_in_error(str(exc)))
             return
@@ -519,7 +552,7 @@ class CapitalGainsApp(BaseWindow):
 
     def _apply_auth_session(self, session: AuthSession) -> None:
         self.auth_session = session
-        self.user_identity = session.identity if session.email else load_user_identity()
+        self.user_identity = session.identity if session.email else self.workflow.state.user_identity
         self.status.configure(text=ui_text("התחברות Google הושלמה"))
         self._refresh_identity_ui()
 
@@ -527,7 +560,7 @@ class CapitalGainsApp(BaseWindow):
         if not self.files:
             messagebox.showwarning(ui_title("אין קבצים"), ui_text("בחרי קודם קובץ אקסל אחד לפחות."))
             return
-        previews = preview_report_headers(self.files)
+        previews = self.workflow.preview_current_headers()
         if not previews:
             messagebox.showwarning(ui_title("לא נמצאו כותרות"), ui_text("לא הצלחתי למצוא שורת כותרות מתאימה בקבצים שנבחרו."))
             return
@@ -540,7 +573,7 @@ class CapitalGainsApp(BaseWindow):
         question = self.question_var.get().strip()
         if not question:
             return
-        answer = answer_question(self.last_result, question)
+        answer = self.workflow.answer_question(question)
         self._append_chat_entry("שאלה", question)
         self._append_chat_entry("תשובה", answer)
         self.question_var.set("")
@@ -563,7 +596,7 @@ class CapitalGainsApp(BaseWindow):
         self._add_paths(selected)
 
     def clear_files(self) -> None:
-        self.files.clear()
+        self.workflow.clear_files()
         self.file_list.delete(0, tk.END)
         self.status.configure(text=ui_text("הרשימה נוקתה"))
         self._draw_empty_dashboard()
@@ -580,7 +613,7 @@ class CapitalGainsApp(BaseWindow):
 
     def _exchange_worker(self, requested_date: date) -> None:
         try:
-            rate = fetch_usd_ils_rate_one_month_back(requested_date)
+            rate = self.workflow.fetch_exchange_rate(requested_date)
             self.after(0, lambda: self._set_exchange_rate(rate))
         except Exception as exc:  # pragma: no cover - network boundary
             error = str(exc)
@@ -603,11 +636,9 @@ class CapitalGainsApp(BaseWindow):
         self._add_paths(paths)
 
     def _add_paths(self, paths) -> None:
-        for raw in paths:
-            path = Path(raw)
-            if path.suffix.lower() in {".xlsx", ".xlsm", ".xls"} and path not in self.files:
-                self.files.append(path)
-                self.file_list.insert(tk.END, ui_text(path.name))
+        added = self.workflow.add_files(list(paths))
+        for path in added:
+            self.file_list.insert(tk.END, ui_text(path.name))
         self.status.configure(text=ui_text(f"{len(self.files)} קבצים ברשימה"))
 
     def calculate_and_export(self) -> None:
@@ -615,17 +646,16 @@ class CapitalGainsApp(BaseWindow):
             messagebox.showwarning(ui_title("אין קבצים"), ui_text("בחרי לפחות קובץ אקסל אחד."))
             return
         try:
-            requested_date = parse_user_date(self.exchange_date_var.get())
-            parsed = parse_reports(self.files)
-            transactions, issues = parsed.transactions, parsed.issues
+            preparation = self.workflow.prepare_analysis(self.exchange_date_var.get())
+            transactions, issues = preparation.transactions, preparation.issues
         except Exception as exc:
             messagebox.showerror(ui_title("שגיאה בקריאת הקבצים"), ui_text(str(exc)))
             self.status.configure(text=ui_text("שגיאה בקריאת הקבצים"))
             return
 
-        unsupported_headers = [issue for issue in issues if issue.field == "header" and issue.severity == "error"]
+        unsupported_headers = preparation.unsupported_headers
         if unsupported_headers:
-            matching_previews = preview_report_headers(self.files)
+            matching_previews = preparation.previews
             preview = next(
                 (
                     item
@@ -680,7 +710,7 @@ class CapitalGainsApp(BaseWindow):
         self.status.configure(text=ui_text("מחשב פיפו, מושך שער דולר ומייצא דוח..."))
         threading.Thread(
             target=self._calculate_worker,
-            args=(transactions, issues, output, requested_date),
+            args=(transactions, issues, output, preparation.requested_date),
             daemon=True,
         ).start()
 
@@ -691,25 +721,18 @@ class CapitalGainsApp(BaseWindow):
         output: str,
         requested_date: date,
     ) -> None:
-        exchange_error = ""
-        exchange_rate = self.last_exchange_rate
-        if exchange_rate is None or exchange_rate.requested_date != requested_date:
-            try:
-                exchange_rate = fetch_usd_ils_rate_one_month_back(requested_date)
-            except Exception as exc:  # pragma: no cover - network boundary
-                exchange_error = str(exc)
-                exchange_rate = None
         try:
-            result = calculate_analysis(transactions, issues)
-            result.exchange_rate = exchange_rate
-            path = export_result(result, output)
-            self.after(0, lambda: self._done(path, result, exchange_error))
+            outcome = self.workflow.export(transactions, issues, output, requested_date)
+            self.after(0, lambda: self._done(outcome))
         except Exception as exc:  # pragma: no cover - GUI boundary
             error = str(exc)
             self.after(0, lambda: messagebox.showerror(ui_title("שגיאה"), ui_text(error)))
             self.after(0, lambda: self.status.configure(text=ui_text("שגיאה בחישוב")))
 
-    def _done(self, path: Path, result: CalculationResult, exchange_error: str = "") -> None:
+    def _done(self, outcome: ExportOutcome) -> None:
+        path = outcome.output_path
+        result = outcome.result
+        exchange_error = outcome.exchange_error
         self.last_result = result
         if result.exchange_rate:
             self.last_exchange_rate = result.exchange_rate

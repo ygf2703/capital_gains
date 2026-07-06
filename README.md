@@ -21,6 +21,7 @@
 - CLI לאימות חישוב בלי ממשק.
 - שכבת Google Sign-In מקומית ל-Desktop: התחברות דרך הדפדפן, שמירת session מקומית, וברכה שנגזרת מהאימייל של המשתמש.
 - שכבות שירות נפרדות לניתוח, Q&A, תבניות דוחות ו-auth, כהכנה להפרדת ליבת הניתוח מהממשק.
+- שכבת `application workflow` שמרכזת state ו-use cases, כדי לאפשר בעתיד ממשקי Windows/Android מעל אותה לוגיקה.
 
 ## התקנה מקומית
 
@@ -81,6 +82,16 @@ $env:CAPITAL_GAINS_GOOGLE_CLIENT_SECRET="C:\path\to\google_client_secret.json"
 - הפרדת ליבת הניתוח מהממשק כדי לאפשר Microsoft Store ו-Android בהמשך.
 - הרחבת מנוע השאלות המקומי כך שיכלול הסברים עמוקים יותר, השוואות בין ניירות ותמיכה בסינונים.
 - חיבור מאובטח של זהות משתמש גם למסלולי Android ו-Windows Store.
+
+## כיוון Multi-Platform
+
+הקוד כבר מתחיל להיות מחולק כך:
+
+- `capital_gains_app/application.py` מנהל state ופעולות אפליקטיביות.
+- `capital_gains_app/gui.py` נשאר שכבת תצוגה ל-Desktop.
+- `capital_gains_app/parsers.py`, `fifo.py`, `exporter.py`, `qa.py` נשארים לוגיקה משותפת.
+
+במילים פשוטות: כדי להגיע בהמשך ל-Windows Store או Android, נוכל להחליף את שכבת ה-UI בלי לכתוב מחדש את מנוע הניתוח.
 
 ## הרצת Console / Alpha
 
