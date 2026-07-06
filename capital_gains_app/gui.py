@@ -138,11 +138,13 @@ class CapitalGainsApp(BaseWindow):
         self.workflow = CapitalGainsWorkflow()
         self.exchange_date_var = tk.StringVar(value=date.today().isoformat())
         self.kpi_labels: dict[str, ctk.CTkLabel] = {}
+        self.dashboard_meta_labels: dict[str, ctk.CTkLabel] = {}
         self.insight_labels: list[ctk.CTkLabel] = []
         self.greeting_label: ctk.CTkLabel | None = None
         self.profile_label: ctk.CTkLabel | None = None
         self.auth_hint_label: ctk.CTkLabel | None = None
         self.auth_button: ctk.CTkButton | None = None
+        self.dashboard_note_label: ctk.CTkLabel | None = None
         self.question_var = tk.StringVar()
         self.chat_box: ctk.CTkTextbox | None = None
         self.login_dialog: LoginDialog | None = None
@@ -245,7 +247,13 @@ class CapitalGainsApp(BaseWindow):
         self.auth_button = self._button(auth_frame, "התחברות", self.toggle_auth_session, width=164)
         self.auth_button.grid(row=2, column=0, padx=14, pady=(0, 12), sticky="e")
 
-        toolbar = ctk.CTkFrame(self, corner_radius=8, fg_color=PALETTE["panel_glass"], border_width=1, border_color=PALETTE["line"])
+        toolbar = ctk.CTkFrame(
+            self,
+            corner_radius=10,
+            fg_color=PALETTE["panel_glass"],
+            border_width=1,
+            border_color=PALETTE["primary_border"],
+        )
         toolbar.grid(row=1, column=0, padx=18, pady=14, sticky="ew")
         toolbar.grid_columnconfigure(4, weight=1)
 
@@ -309,7 +317,7 @@ class CapitalGainsApp(BaseWindow):
         self.after(80, self._require_authentication)
 
     def _build_file_panel(self, parent: ctk.CTkFrame) -> None:
-        panel = ctk.CTkFrame(parent, corner_radius=8, fg_color=PALETTE["panel"], border_width=1, border_color=PALETTE["line"])
+        panel = ctk.CTkFrame(parent, corner_radius=10, fg_color=PALETTE["panel"], border_width=1, border_color=PALETTE["line"])
         panel.grid(row=0, column=0, sticky="nsew", padx=(0, 12))
         panel.grid_rowconfigure(3, weight=1)
         panel.grid_rowconfigure(6, weight=1)
@@ -340,7 +348,7 @@ class CapitalGainsApp(BaseWindow):
             anchor="e",
         ).grid(row=2, column=0, padx=20, pady=(0, 8), sticky="ew")
 
-        drop_frame = ctk.CTkFrame(panel, border_width=1, border_color=PALETTE["line"], corner_radius=8, fg_color="#0D1013")
+        drop_frame = ctk.CTkFrame(panel, border_width=1, border_color=PALETTE["primary_border"], corner_radius=10, fg_color=PALETTE["panel_alt"])
         drop_frame.grid(row=3, column=0, padx=20, pady=(0, 20), sticky="nsew")
         drop_frame.grid_columnconfigure(0, weight=1)
         drop_frame.grid_rowconfigure(0, weight=1)
@@ -349,11 +357,11 @@ class CapitalGainsApp(BaseWindow):
             drop_frame,
             height=10,
             activestyle="none",
-            bg="#0D1013",
+            bg=PALETTE["panel_alt"],
             fg=PALETTE["text"],
             highlightthickness=0,
             borderwidth=0,
-            selectbackground="#2A3138",
+            selectbackground="#233243",
             selectforeground=PALETTE["chart_white"],
             font=(ASSISTANT_FONT_FAMILY, 11),
         )
@@ -382,14 +390,14 @@ class CapitalGainsApp(BaseWindow):
             anchor="e",
         ).grid(row=5, column=0, padx=20, pady=(0, 6), sticky="ew")
 
-        chat_frame = ctk.CTkFrame(panel, corner_radius=8, fg_color="#0D1013", border_width=1, border_color=PALETTE["line"])
+        chat_frame = ctk.CTkFrame(panel, corner_radius=10, fg_color=PALETTE["panel_alt"], border_width=1, border_color=PALETTE["line"])
         chat_frame.grid(row=6, column=0, padx=20, pady=(0, 20), sticky="nsew")
         chat_frame.grid_columnconfigure(0, weight=1)
         chat_frame.grid_rowconfigure(0, weight=1)
 
         self.chat_box = ctk.CTkTextbox(
             chat_frame,
-            fg_color="#0D1013",
+            fg_color=PALETTE["panel_alt"],
             text_color=PALETTE["text"],
             border_width=0,
             font=ui_font(12),
@@ -437,18 +445,70 @@ class CapitalGainsApp(BaseWindow):
         ).grid(row=0, column=2, padx=(6, 0), sticky="ew")
 
     def _build_dashboard_panel(self, parent: ctk.CTkFrame) -> None:
-        dashboard = ctk.CTkScrollableFrame(parent, corner_radius=8, fg_color=PALETTE["panel"], border_width=1, border_color=PALETTE["line"])
+        dashboard = ctk.CTkScrollableFrame(parent, corner_radius=10, fg_color=PALETTE["panel"], border_width=1, border_color=PALETTE["line"])
         dashboard.grid(row=0, column=1, sticky="nsew")
         dashboard.grid_columnconfigure((0, 1), weight=1)
-        dashboard.grid_rowconfigure(5, weight=1)
+        dashboard.grid_rowconfigure(7, weight=1)
 
-        ctk.CTkLabel(
+        hero = ctk.CTkFrame(
             dashboard,
+            corner_radius=10,
+            fg_color=PALETTE["panel_alt"],
+            border_width=1,
+            border_color=PALETTE["primary_border"],
+        )
+        hero.grid(row=0, column=0, columnspan=2, padx=16, pady=(16, 10), sticky="ew")
+        hero.grid_columnconfigure((0, 1, 2), weight=1)
+        ctk.CTkLabel(
+            hero,
             text=ui_text("דשבורד"),
-            font=ui_font(20, "bold"),
+            font=ui_font(21, "bold"),
             text_color=PALETTE["text"],
             anchor="e",
-        ).grid(row=0, column=0, columnspan=2, padx=18, pady=(18, 8), sticky="ew")
+        ).grid(row=0, column=0, columnspan=3, padx=16, pady=(14, 2), sticky="ew")
+        ctk.CTkLabel(
+            hero,
+            text=ui_text("תמונת מצב מהירה של הדוח, החריגים והחשיפות הפעילות."),
+            font=ui_font(12),
+            text_color=PALETTE["muted"],
+            anchor="e",
+        ).grid(row=1, column=0, columnspan=3, padx=16, pady=(0, 12), sticky="ew")
+
+        meta_cards = [
+            ("open_lots", "פוזיציות פתוחות"),
+            ("corporate_actions", "אירועי הון"),
+            ("inferred_rows", "שורות עם אומדן"),
+        ]
+        for index, (key, title) in enumerate(meta_cards):
+            card = ctk.CTkFrame(hero, corner_radius=8, fg_color=PALETTE["panel_glass"], border_width=1, border_color=PALETTE["line"])
+            card.grid(row=2, column=index, padx=(16 if index == 0 else 6, 16 if index == 2 else 6), pady=(0, 12), sticky="ew")
+            ctk.CTkLabel(
+                card,
+                text=ui_text(title),
+                font=ui_font(11),
+                text_color=PALETTE["muted"],
+                anchor="e",
+            ).pack(fill="x", padx=12, pady=(9, 0))
+            value_label = ctk.CTkLabel(
+                card,
+                text="-",
+                font=ui_font(18, "bold"),
+                text_color=PALETTE["text"],
+                anchor="e",
+            )
+            value_label.pack(fill="x", padx=12, pady=(0, 8))
+            self.dashboard_meta_labels[key] = value_label
+
+        self.dashboard_note_label = ctk.CTkLabel(
+            hero,
+            text=ui_text("לאחר טעינת קובץ יוצגו כאן ריכוזים, חריגים ומדדי עומק לחישוב."),
+            font=ui_font(12),
+            text_color=PALETTE["muted"],
+            anchor="e",
+            justify="right",
+            wraplength=360,
+        )
+        self.dashboard_note_label.grid(row=3, column=0, columnspan=3, padx=16, pady=(0, 14), sticky="ew")
 
         cards = [
             ("transactions", "תנועות", PALETTE["card_blue"]),
@@ -457,34 +517,54 @@ class CapitalGainsApp(BaseWindow):
             ("issues", "התראות", PALETTE["card_yellow"]),
         ]
         for index, (key, title, color) in enumerate(cards):
-            card = ctk.CTkFrame(dashboard, corner_radius=8, fg_color=color)
+            card = ctk.CTkFrame(dashboard, corner_radius=10, fg_color=color, border_width=1, border_color=PALETTE["line"])
             card.grid(row=1 + index // 2, column=index % 2, padx=10, pady=8, sticky="ew")
-            ctk.CTkLabel(card, text=ui_text(title), font=ui_font(13), text_color=PALETTE["muted"], anchor="e").pack(
-                fill="x", padx=12, pady=(10, 0)
+            ctk.CTkLabel(card, text=ui_text(title), font=ui_font(12), text_color=PALETTE["muted"], anchor="e").pack(
+                fill="x", padx=14, pady=(12, 2)
             )
             value_label = ctk.CTkLabel(
                 card,
                 text="-",
-                font=ui_font(23, "bold"),
+                font=ui_font(25, "bold"),
                 text_color=PALETTE["text"],
                 anchor="e",
             )
-            value_label.pack(fill="x", padx=12, pady=(0, 10))
+            value_label.pack(fill="x", padx=14, pady=(0, 2))
+            ctk.CTkLabel(
+                card,
+                text=ui_text("מדד מרכזי לניתוח הנוכחי"),
+                font=ui_font(10),
+                text_color=PALETTE["muted"],
+                anchor="e",
+            ).pack(fill="x", padx=14, pady=(0, 12))
             self.kpi_labels[key] = value_label
 
-        insights_frame = ctk.CTkFrame(dashboard, corner_radius=8, fg_color="#0D1013", border_width=1, border_color=PALETTE["line"])
+        insights_frame = ctk.CTkFrame(
+            dashboard,
+            corner_radius=10,
+            fg_color=PALETTE["panel_alt"],
+            border_width=1,
+            border_color=PALETTE["line"],
+        )
         insights_frame.grid(row=3, column=0, columnspan=2, padx=16, pady=(10, 6), sticky="ew")
         insights_frame.grid_columnconfigure(0, weight=1)
         ctk.CTkLabel(
             insights_frame,
             text=ui_text("תובנות מרכזיות"),
-            font=ui_font(15, "bold"),
+            font=ui_font(16, "bold"),
             text_color=PALETTE["text"],
             anchor="e",
-        ).grid(row=0, column=0, padx=12, pady=(10, 4), sticky="ew")
+        ).grid(row=0, column=0, padx=14, pady=(12, 2), sticky="ew")
+        ctk.CTkLabel(
+            insights_frame,
+            text=ui_text("המערכת מסכמת את עיקרי התמונה העסקית והחשבונאית מתוך הקובץ."),
+            font=ui_font(11),
+            text_color=PALETTE["muted"],
+            anchor="e",
+        ).grid(row=1, column=0, padx=14, pady=(0, 10), sticky="ew")
         for index in range(5):
-            row = ctk.CTkFrame(insights_frame, fg_color="transparent")
-            row.grid(row=index + 1, column=0, padx=12, pady=(0, 4), sticky="ew")
+            row = ctk.CTkFrame(insights_frame, fg_color=PALETTE["panel_glass"], corner_radius=8)
+            row.grid(row=index + 2, column=0, padx=12, pady=(0, 6), sticky="ew")
             row.grid_columnconfigure(0, weight=1)
             label = ctk.CTkLabel(
                 row,
@@ -493,36 +573,80 @@ class CapitalGainsApp(BaseWindow):
                 text_color=PALETTE["muted"],
                 anchor="e",
                 justify="right",
-                wraplength=340,
+                wraplength=320,
             )
-            label.grid(row=0, column=0, sticky="ew")
+            label.grid(row=0, column=0, padx=(12, 6), pady=10, sticky="ew")
             ctk.CTkLabel(
                 row,
                 text=f"{index + 1}.",
                 font=ui_font(13),
-                text_color=PALETTE["muted"],
+                text_color=PALETTE["primary_hover"],
                 anchor="e",
                 width=26,
-            ).grid(row=0, column=1, padx=(6, 0), sticky="e")
+            ).grid(row=0, column=1, padx=(6, 12), pady=10, sticky="e")
             self.insight_labels.append(label)
 
+        gain_frame = ctk.CTkFrame(
+            dashboard,
+            corner_radius=10,
+            fg_color=PALETTE["panel_alt"],
+            border_width=1,
+            border_color=PALETTE["line"],
+        )
+        gain_frame.grid(row=4, column=0, columnspan=2, padx=16, pady=(10, 6), sticky="ew")
+        ctk.CTkLabel(
+            gain_frame,
+            text=ui_text("רווח והפסד לפי נייר"),
+            font=ui_font(15, "bold"),
+            text_color=PALETTE["text"],
+            anchor="e",
+        ).pack(fill="x", padx=14, pady=(12, 0))
+        ctk.CTkLabel(
+            gain_frame,
+            text=ui_text("הצגה של הניירות בעלי ההשפעה הגבוהה ביותר על התוצאה."),
+            font=ui_font(11),
+            text_color=PALETTE["muted"],
+            anchor="e",
+        ).pack(fill="x", padx=14, pady=(0, 8))
         self.gain_canvas = tk.Canvas(
-            dashboard,
+            gain_frame,
             width=420,
             height=190,
-            bg=PALETTE["panel"],
+            bg=PALETTE["panel_alt"],
             highlightthickness=0,
         )
-        self.gain_canvas.grid(row=4, column=0, columnspan=2, padx=16, pady=(10, 6), sticky="ew")
+        self.gain_canvas.pack(fill="x", padx=12, pady=(0, 12))
 
-        self.action_canvas = tk.Canvas(
+        action_frame = ctk.CTkFrame(
             dashboard,
+            corner_radius=10,
+            fg_color=PALETTE["panel_alt"],
+            border_width=1,
+            border_color=PALETTE["line"],
+        )
+        action_frame.grid(row=5, column=0, columnspan=2, padx=16, pady=(6, 16), sticky="nsew")
+        ctk.CTkLabel(
+            action_frame,
+            text=ui_text("פילוח פעולות"),
+            font=ui_font(15, "bold"),
+            text_color=PALETTE["text"],
+            anchor="e",
+        ).pack(fill="x", padx=14, pady=(12, 0))
+        ctk.CTkLabel(
+            action_frame,
+            text=ui_text("התפלגות הקניות, המכירות ושאר הפעולות שנקלטו מהדוח."),
+            font=ui_font(11),
+            text_color=PALETTE["muted"],
+            anchor="e",
+        ).pack(fill="x", padx=14, pady=(0, 8))
+        self.action_canvas = tk.Canvas(
+            action_frame,
             width=420,
             height=190,
-            bg=PALETTE["panel"],
+            bg=PALETTE["panel_alt"],
             highlightthickness=0,
         )
-        self.action_canvas.grid(row=5, column=0, columnspan=2, padx=16, pady=(6, 16), sticky="nsew")
+        self.action_canvas.pack(fill="x", padx=12, pady=(0, 12))
 
     def _button(self, parent, text: str, command, fg_color: str | None = None, width: int = 120) -> ctk.CTkButton:
         is_secondary = fg_color == PALETTE["secondary"]
@@ -794,6 +918,15 @@ class CapitalGainsApp(BaseWindow):
         self.kpi_labels["securities"].configure(text=f"{summary.unique_securities:,}")
         self.kpi_labels["realized"].configure(text=f"{summary.realized_rows:,}")
         self.kpi_labels["issues"].configure(text=f"{summary.issue_count:,}")
+        self.dashboard_meta_labels["open_lots"].configure(text=f"{summary.open_lots:,}")
+        self.dashboard_meta_labels["corporate_actions"].configure(text=f"{summary.corporate_actions:,}")
+        self.dashboard_meta_labels["inferred_rows"].configure(text=f"{summary.inferred_rows:,}")
+        if self.dashboard_note_label is not None:
+            note = (
+                f"הדוח כולל {summary.total_transactions:,} תנועות, "
+                f"{summary.unique_securities:,} ניירות ו-{summary.open_lots:,} פוזיציות פתוחות."
+            )
+            self.dashboard_note_label.configure(text=ui_text(note))
         for index, label in enumerate(self.insight_labels):
             insight = summary.key_insights[index] if index < len(summary.key_insights) else ""
             label.configure(text=ui_text(insight) if insight else "")
@@ -803,6 +936,10 @@ class CapitalGainsApp(BaseWindow):
     def _draw_empty_dashboard(self) -> None:
         for label in self.kpi_labels.values():
             label.configure(text="-")
+        for label in self.dashboard_meta_labels.values():
+            label.configure(text="-")
+        if self.dashboard_note_label is not None:
+            self.dashboard_note_label.configure(text=ui_text("לאחר טעינת קובץ יוצגו כאן ריכוזים, חריגים ומדדי עומק לחישוב."))
         for label in self.insight_labels:
             label.configure(text=ui_text("התובנות יופיעו אחרי החישוב"))
         self._draw_gain_chart([])
@@ -813,14 +950,6 @@ class CapitalGainsApp(BaseWindow):
         canvas.delete("all")
         width = max(canvas.winfo_width(), 420)
         height = max(canvas.winfo_height(), 190)
-        canvas.create_text(
-            width - 8,
-            18,
-            text=ui_text("רווח/הפסד לפי נייר"),
-            anchor="e",
-            fill=PALETTE["text"],
-            font=(ASSISTANT_FONT_FAMILY, 13, "bold"),
-        )
         if not rows:
             canvas.create_text(
                 width / 2,
@@ -836,7 +965,7 @@ class CapitalGainsApp(BaseWindow):
         max_abs = max(abs(value) for value in values) or 1
         chart_left = 24
         chart_right = width - 24
-        baseline = 112
+        baseline = 106
         bar_area = chart_right - chart_left
         step = bar_area / len(rows)
 
@@ -856,7 +985,7 @@ class CapitalGainsApp(BaseWindow):
             canvas.create_text(center, y1 + 12 if value >= 0 else y1 + 12, text=currency, fill=PALETTE["chart_white"], font=(ASSISTANT_FONT_FAMILY, 8))
             canvas.create_text(
                 center,
-                168,
+                164,
                 text=ui_text(_short_label(label)),
                 fill=PALETTE["muted"],
                 font=(ASSISTANT_FONT_FAMILY, 8),
@@ -869,14 +998,6 @@ class CapitalGainsApp(BaseWindow):
         canvas.delete("all")
         width = max(canvas.winfo_width(), 420)
         height = max(canvas.winfo_height(), 190)
-        canvas.create_text(
-            width - 8,
-            18,
-            text=ui_text("פילוח פעולות"),
-            anchor="e",
-            fill=PALETTE["text"],
-            font=(ASSISTANT_FONT_FAMILY, 13, "bold"),
-        )
         if not rows:
             canvas.create_text(
                 width / 2,
@@ -889,8 +1010,8 @@ class CapitalGainsApp(BaseWindow):
 
         colors = CHART_COLORS
         total = sum(value for _, value in rows) or 1
-        center_x = 88
-        center_y = 104
+        center_x = 94
+        center_y = 96
         radius = 54
         start = 90
         for index, (_label, value) in enumerate(rows):
