@@ -12,9 +12,8 @@ import customtkinter as ctk
 from .dashboard import build_dashboard_summary
 from .exchange_rates import fetch_usd_ils_rate_one_month_back, parse_user_date
 from .exporter import export_result
-from .fifo import calculate_fifo
 from .models import CalculationResult, ExchangeRateSnapshot, Transaction, ValidationIssue
-from .parsers import parse_workbooks
+from .services import calculate_analysis, parse_reports
 from .ui_text import ASSISTANT_FONT_FAMILY, load_assistant_font, ui_font, ui_text, ui_title
 from .user_identity import UserIdentity, greeting_for_user, load_user_identity
 
@@ -451,7 +450,8 @@ class CapitalGainsApp(BaseWindow):
             return
         try:
             requested_date = parse_user_date(self.exchange_date_var.get())
-            transactions, issues = parse_workbooks(self.files)
+            parsed = parse_reports(self.files)
+            transactions, issues = parsed.transactions, parsed.issues
         except Exception as exc:
             messagebox.showerror(ui_title("שגיאה בקריאת הקבצים"), ui_text(str(exc)))
             self.status.configure(text=ui_text("שגיאה בקריאת הקבצים"))
@@ -500,7 +500,7 @@ class CapitalGainsApp(BaseWindow):
                 exchange_error = str(exc)
                 exchange_rate = None
         try:
-            result = calculate_fifo(transactions, issues)
+            result = calculate_analysis(transactions, issues)
             result.exchange_rate = exchange_rate
             path = export_result(result, output)
             self.after(0, lambda: self._done(path, result, exchange_error))

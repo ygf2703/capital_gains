@@ -1,13 +1,9 @@
 from __future__ import annotations
 
 import argparse
-from datetime import datetime
 from pathlib import Path
 
-from .exchange_rates import fetch_usd_ils_rate_one_month_back, parse_user_date
-from .exporter import export_result
-from .fifo import calculate_fifo
-from .parsers import parse_workbooks
+from .services import apply_exchange_rate, calculate_analysis, export_analysis, parse_reports
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -28,12 +24,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def run(files: list[str], output: str = "", infer_missing_cost: bool = True, exchange_date: str = "") -> Path:
-    transactions, issues = parse_workbooks([Path(file) for file in files])
-    result = calculate_fifo(transactions, issues, infer_missing_cost_basis=infer_missing_cost)
-    if exchange_date:
-        result.exchange_rate = fetch_usd_ils_rate_one_month_back(parse_user_date(exchange_date))
-    output_path = Path(output) if output else Path("outputs") / f"fifo_report_{datetime.now():%Y%m%d_%H%M%S}.xlsx"
-    return export_result(result, output_path)
+    parsed = parse_reports([Path(file) for file in files])
+    result = calculate_analysis(parsed.transactions, parsed.issues, infer_missing_cost_basis=infer_missing_cost)
+    apply_exchange_rate(result, exchange_date)
+    return export_analysis(result, output)
 
 
 def main(argv: list[str] | None = None) -> None:

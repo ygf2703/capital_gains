@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -10,10 +11,63 @@ from openpyxl import load_workbook
 from .models import ActionType, Transaction, ValidationIssue
 
 
-HEADER_ALIASES = {
-    "agis": {"Trade Date", "Transaction", "Quantity", "Net Amount ($)"},
-    "leumi": {"אסמכתא", "תאריך ביצוע", "פעולה", "כמות ביצוע", "תמורה נטו לפני מס"},
-}
+@dataclass(frozen=True, slots=True)
+class BrokerLayout:
+    broker: str
+    required_fields: tuple[str, ...]
+    field_aliases: dict[str, tuple[str, ...]]
+
+
+@dataclass(frozen=True, slots=True)
+class HeaderDetection:
+    header_row_index: int
+    broker: str
+    column_map: dict[str, str]
+    confidence: float
+
+
+BROKER_LAYOUTS = (
+    BrokerLayout(
+        broker="agis",
+        required_fields=("trade_date", "action", "quantity", "net_amount"),
+        field_aliases={
+            "trade_date": ("Trade Date", "Execution Date", "Trade date", "Date"),
+            "action": ("Transaction", "Action", "Activity"),
+            "quantity": ("Quantity", "Qty", "Executed Quantity"),
+            "price": ("Price ($)", "Price", "Trade Price"),
+            "net_amount": ("Net Amount ($)", "Net Amount", "Net Proceeds"),
+            "security_type": ("Security Type", "Type"),
+            "settlement_date": ("Settlement Date", "Value Date"),
+            "security_id": ("Cusip", "CUSIP", "Security ID", "ISIN"),
+            "symbol": ("Security", "Symbol", "Ticker"),
+            "security_name": ("Description", "Security Name", "Name"),
+            "base_currency": ("Base Currency", "Currency", "Trade Currency"),
+            "commission": ("Commissions ($)", "Commission", "Commissions"),
+            "fees": ("Fees ($)", "Fees", "Other Fees"),
+            "account_type": ("Account Type", "Account"),
+        },
+    ),
+    BrokerLayout(
+        broker="leumi",
+        required_fields=("reference", "trade_date", "action", "quantity", "net_amount"),
+        field_aliases={
+            "reference": ("אסמכתא", "מספר אסמכתא", "אסמכתה"),
+            "trade_date": ("תאריך ביצוע", "תאריך עסקה", "תאריך"),
+            "action": ("פעולה", "סוג פעולה"),
+            "security_id": ("מס' בורסה", "מספר בורסה", "מס' נייר", "מספר נייר"),
+            "security_name": ('שם ני"ע', "שם נייר ערך", "שם נייר"),
+            "quantity": ("כמות ביצוע", "כמות", "כמות נייר"),
+            "price": ("שער ביצוע", "שער", "מחיר ביצוע"),
+            "net_amount": ("תמורה נטו לפני מס", "תמורה נטו", "תמורה"),
+            "currency": ("מטבע", "מטבע עסקה"),
+            "commission": ("עמלות ודמי ניהול", "עמלות", "דמי ניהול"),
+            "bank_reported_gain_loss": ("רווח/הפסד", "רווח הפסד", "רווח או הפסד"),
+            "tax_rate": ("שעור המס", "שיעור המס"),
+            "tax_withheld_local": ("מס שנוכה/הוחזר בארץ", "מס בארץ"),
+            "tax_withheld_foreign": ('מס חו"ל בשקלים', "מס חול בשקלים"),
+        },
+    ),
+)
 
 
 def parse_workbooks(paths: list[str | Path]) -> tuple[list[Transaction], list[ValidationIssue]]:
@@ -31,60 +85,83 @@ def parse_workbook(path: Path) -> tuple[list[Transaction], list[ValidationIssue]
     workbook = load_workbook(path, read_only=True, data_only=True)
     all_transactions: list[Transaction] = []
     issues: list[ValidationIssue] = []
-
-    for sheet in workbook.worksheets:
-        rows = list(sheet.iter_rows(values_only=True))
-        header_row_index, broker = _detect_header(rows)
-        if header_row_index is None or broker is None:
-            issues.append(
-                ValidationIssue(
-                    severity="error",
-                    message="Could not detect a supported report header",
-                    source_file=path.name,
-                    sheet=sheet.title,
-                    row_number=1,
+    try:
+        for sheet in workbook.worksheets:
+            rows = list(sheet.iter_rows(values_only=True))
+            detection = _detect_header(rows)
+            if detection is None:
+                issues.append(
+                    ValidationIssue(
+                        severity="error",
+                        message="Could not detect a supported report header",
+                        source_file=path.name,
+                        sheet=sheet.title,
+                        row_number=1,
+                    )
                 )
-            )
-            continue
+                continue
 
-        headers = [_clean_header(v) for v in rows[header_row_index - 1]]
-        data_rows = rows[header_row_index:]
-        df = pd.DataFrame(data_rows, columns=headers)
-        df = df.dropna(how="all")
+            headers = [_clean_header(v) for v in rows[detection.header_row_index - 1]]
+            data_rows = rows[detection.header_row_index :]
+            df = pd.DataFrame(data_rows, columns=headers)
+            df = df.dropna(how="all")
 
-        if broker == "agis":
-            parsed, sheet_issues = _parse_agis(df, path.name, sheet.title, header_row_index)
-        else:
-            parsed, sheet_issues = _parse_leumi(df, path.name, sheet.title, header_row_index)
-        all_transactions.extend(parsed)
-        issues.extend(sheet_issues)
+            if detection.broker == "agis":
+                parsed, sheet_issues = _parse_agis(df, path.name, sheet.title, detection)
+            else:
+                parsed, sheet_issues = _parse_leumi(df, path.name, sheet.title, detection)
+            all_transactions.extend(parsed)
+            issues.extend(sheet_issues)
+    finally:
+        workbook.close()
 
     return all_transactions, issues
 
 
-def _detect_header(rows: list[tuple[Any, ...]]) -> tuple[int | None, str | None]:
+def _detect_header(rows: list[tuple[Any, ...]]) -> HeaderDetection | None:
     for index, row in enumerate(rows, start=1):
-        values = {_clean_header(v) for v in row if v is not None}
-        for broker, required in HEADER_ALIASES.items():
-            if required.issubset(values):
-                return index, broker
-    return None, None
+        actual_headers = [_clean_header(v) for v in row if _clean_header(v)]
+        normalized_map = {_normalize_header_text(header): header for header in actual_headers}
+        for layout in BROKER_LAYOUTS:
+            column_map = _match_layout(normalized_map, layout)
+            if column_map is None:
+                continue
+            confidence = len(column_map) / len(layout.field_aliases)
+            return HeaderDetection(index, layout.broker, column_map, confidence)
+    return None
 
 
-def _parse_agis(
-    df: pd.DataFrame, source_file: str, sheet: str, header_row_index: int
-) -> tuple[list[Transaction], list[ValidationIssue]]:
+def _match_layout(normalized_map: dict[str, str], layout: BrokerLayout) -> dict[str, str] | None:
+    column_map: dict[str, str] = {}
+    for field_name, aliases in layout.field_aliases.items():
+        matched_header = _find_matching_header(normalized_map, aliases)
+        if matched_header:
+            column_map[field_name] = matched_header
+    if all(field_name in column_map for field_name in layout.required_fields):
+        return column_map
+    return None
+
+
+def _find_matching_header(normalized_map: dict[str, str], aliases: tuple[str, ...]) -> str:
+    for alias in aliases:
+        actual = normalized_map.get(_normalize_header_text(alias))
+        if actual:
+            return actual
+    return ""
+
+
+def _parse_agis(df: pd.DataFrame, source_file: str, sheet: str, detection: HeaderDetection) -> tuple[list[Transaction], list[ValidationIssue]]:
     transactions: list[Transaction] = []
     issues: list[ValidationIssue] = []
     for position, row in df.iterrows():
-        row_number = header_row_index + 1 + int(position)
-        action_raw = _text(row.get("Transaction"))
-        trade_date = _parse_date(row.get("Trade Date"))
-        quantity = _num(row.get("Quantity"))
-        price_raw = row.get("Price ($)")
+        row_number = detection.header_row_index + 1 + int(position)
+        action_raw = _text(_value(row, detection.column_map, "action"))
+        trade_date = _parse_date(_value(row, detection.column_map, "trade_date"))
+        quantity = _num(_value(row, detection.column_map, "quantity"))
+        price_raw = _value(row, detection.column_map, "price")
         price = _num(price_raw)
-        net_amount = _num(row.get("Net Amount ($)"))
-        security_type = _text(row.get("Security Type"))
+        net_amount = _num(_value(row, detection.column_map, "net_amount"))
+        security_type = _text(_value(row, detection.column_map, "security_type"))
 
         if not action_raw or not trade_date:
             continue
@@ -100,21 +177,21 @@ def _parse_agis(
             row_number=row_number,
             broker="Agis",
             trade_date=trade_date,
-            settlement_date=_parse_date(row.get("Settlement Date")),
+            settlement_date=_parse_date(_value(row, detection.column_map, "settlement_date")),
             action_raw=action_raw,
             action_type=action_type,
-            security_id=_text(row.get("Cusip")),
-            symbol=_text(row.get("Security")),
-            security_name=_text(row.get("Description")),
+            security_id=_text(_value(row, detection.column_map, "security_id")),
+            symbol=_text(_value(row, detection.column_map, "symbol")),
+            security_name=_text(_value(row, detection.column_map, "security_name")),
             quantity=quantity,
             price=price,
-            currency=_normalize_currency(row.get("Base Currency")),
-            report_currency=_normalize_currency(row.get("Base Currency")),
-            commission=_num(row.get("Commissions ($)")),
-            fees=_num(row.get("Fees ($)")),
+            currency=_normalize_currency(_value(row, detection.column_map, "base_currency")),
+            report_currency=_normalize_currency(_value(row, detection.column_map, "base_currency")),
+            commission=_num(_value(row, detection.column_map, "commission")),
+            fees=_num(_value(row, detection.column_map, "fees")),
             net_amount=net_amount,
-            account_type=_text(row.get("Account Type")),
-            description=_text(row.get("Description")),
+            account_type=_text(_value(row, detection.column_map, "account_type")),
+            description=_text(_value(row, detection.column_map, "security_name")),
             raw=_row_to_dict(row),
         )
         _validate_transaction(transaction, issues)
@@ -125,25 +202,23 @@ def _parse_agis(
     return transactions, issues
 
 
-def _parse_leumi(
-    df: pd.DataFrame, source_file: str, sheet: str, header_row_index: int
-) -> tuple[list[Transaction], list[ValidationIssue]]:
+def _parse_leumi(df: pd.DataFrame, source_file: str, sheet: str, detection: HeaderDetection) -> tuple[list[Transaction], list[ValidationIssue]]:
     transactions: list[Transaction] = []
     issues: list[ValidationIssue] = []
     for position, row in df.iterrows():
-        row_number = header_row_index + 1 + int(position)
-        action_raw = _text(row.get("פעולה"))
-        trade_date = _parse_date(row.get("תאריך ביצוע"), day_first=True)
-        security_id = _text(row.get("מס' בורסה"))
-        security_name = _text(row.get('שם ני"ע'))
-        quantity = _num(row.get("כמות ביצוע"))
-        price_raw = row.get("שער ביצוע")
+        row_number = detection.header_row_index + 1 + int(position)
+        action_raw = _text(_value(row, detection.column_map, "action"))
+        trade_date = _parse_date(_value(row, detection.column_map, "trade_date"), day_first=True)
+        security_id = _text(_value(row, detection.column_map, "security_id"))
+        security_name = _text(_value(row, detection.column_map, "security_name"))
+        quantity = _num(_value(row, detection.column_map, "quantity"))
+        price_raw = _value(row, detection.column_map, "price")
         price = _num(price_raw)
-        net_amount = _num(row.get("תמורה נטו לפני מס"))
+        net_amount = _num(_value(row, detection.column_map, "net_amount"))
 
         if not action_raw or not trade_date:
             continue
-        if str(row.get("אסמכתא", "")).startswith("סה"):
+        if str(_value(row, detection.column_map, "reference", "")).startswith("סה"):
             continue
 
         action_type = _map_leumi_action(action_raw, quantity, net_amount)
@@ -160,16 +235,16 @@ def _parse_leumi(
             security_name=security_name,
             quantity=quantity,
             price=price,
-            currency=_normalize_currency(row.get("מטבע")),
+            currency=_normalize_currency(_value(row, detection.column_map, "currency")),
             report_currency="ILS",
-            commission=_num(row.get("עמלות ודמי ניהול")),
+            commission=_num(_value(row, detection.column_map, "commission")),
             fees=0.0,
             net_amount=net_amount,
-            bank_reported_gain_loss=_optional_num(row.get("רווח/הפסד")),
-            tax_rate=_optional_num(row.get("שעור המס")),
-            tax_withheld_local=_optional_num(row.get("מס שנוכה/הוחזר בארץ")),
-            tax_withheld_foreign=_optional_num(row.get('מס חו"ל בשקלים')),
-            reference=_text(row.get("אסמכתא")),
+            bank_reported_gain_loss=_optional_num(_value(row, detection.column_map, "bank_reported_gain_loss")),
+            tax_rate=_optional_num(_value(row, detection.column_map, "tax_rate")),
+            tax_withheld_local=_optional_num(_value(row, detection.column_map, "tax_withheld_local")),
+            tax_withheld_foreign=_optional_num(_value(row, detection.column_map, "tax_withheld_foreign")),
+            reference=_text(_value(row, detection.column_map, "reference")),
             description=security_name,
             raw=_row_to_dict(row),
         )
@@ -249,6 +324,22 @@ def _clean_header(value: Any) -> str:
     if value is None:
         return ""
     return str(value).strip()
+
+
+def _normalize_header_text(value: Any) -> str:
+    if value is None:
+        return ""
+    text = str(value).strip().lower()
+    for marker in ('"', "'", "׳", "״"):
+        text = text.replace(marker, "")
+    return " ".join(text.split())
+
+
+def _value(row: pd.Series, column_map: dict[str, str], field_name: str, default: Any = None) -> Any:
+    header = column_map.get(field_name)
+    if not header:
+        return default
+    return row.get(header, default)
 
 
 def _text(value: Any) -> str:
