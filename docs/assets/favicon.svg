@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Capital Gains favicon">
+  <defs>
+    <linearGradient id="g" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stop-color="#f0dfaa"/><stop offset="1" stop-color="#b99a45"/></linearGradient>
+  </defs>
+  <rect width="256" height="256" rx="48" fill="#071224"/>
+  <circle cx="112" cy="116" r="66" fill="none" stroke="#ffffff" stroke-opacity="0.92" stroke-width="18"/>
+  <path d="M160 164l45 45" stroke="#ffffff" stroke-width="20" stroke-linecap="round"/>
+  <path d="M58 163l49-39 24 18 57-63" fill="none" stroke="url(#g)" stroke-width="17" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M190 76l6 40-39-10z" fill="url(#g)"/>
+</svg>

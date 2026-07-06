@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Capital Gains | ניתוח רווחי הון חכם</title>
+  <meta name="description" content="Capital Gains היא אפליקציית Windows מקומית לחישוב רווח והפסד הון מניירות ערך לפי FIFO, ניתוח דוחות Excel, תובנות וייצוא קובץ אקסל מקצועי." />
+  <meta name="theme-color" content="#071224" />
+  <link rel="icon" href="assets/favicon.svg" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="site-header" id="top">
+    <a class="brand" href="#top" aria-label="Capital Gains home">
+      <img src="assets/capital-gains-logo.svg" alt="Capital Gains logo" />
+    </a>
+
+    <nav class="nav" aria-label="ניווט ראשי">
+      <a href="#product">המוצר</a>
+      <a href="#features">יכולות</a>
+      <a href="#workflow">איך זה עובד</a>
+      <a href="#security">פרטיות</a>
+      <a href="#faq">FAQ</a>
+    </nav>
+
+    <a class="header-cta" href="https://github.com/ygf2703/capital_gains" target="_blank" rel="noreferrer">Alpha ב-GitHub</a>
+  </header>
+
+  <main>
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="hero-bg-grid" aria-hidden="true"></div>
+      <div class="hero-content">
+        <p class="eyebrow">Local-first financial intelligence</p>
+        <h1 id="hero-title">להפוך דוחות ניירות ערך לקובץ FIFO נקי, תובנות ודשבורד מקצועי.</h1>
+        <p class="hero-lead">
+          Capital Gains מנתחת דוחות Excel של פעולות בניירות ערך, מזהה מבנים שונים, מחשבת רווח והפסד הון לפי FIFO, ומייצאת קובץ Excel מסודר לקבלת תמונת מצב אמינה וברורה.
+        </p>
+
+        <div class="hero-actions" aria-label="פעולות ראשיות">
+          <a class="btn primary" href="https://github.com/ygf2703/capital_gains" target="_blank" rel="noreferrer">להורדת גרסת Alpha</a>
+          <a class="btn ghost" href="#waitlist">Microsoft Store — בקרוב</a>
+          <a class="btn ghost muted" href="#roadmap">Google Play — בתכנון</a>
+        </div>
+
+        <div class="trust-row" aria-label="עקרונות מוצר">
+          <span>Windows desktop</span>
+          <span>Excel in / Excel out</span>
+          <span>FIFO engine</span>
+          <span>Local processing</span>
+        </div>
+      </div>
+
+      <aside class="hero-card" aria-label="תצוגת דשבורד לדוגמה">
+        <div class="terminal-topline">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="mock-dashboard">
+          <div class="mock-title">
+            <strong>Capital Gains Dashboard</strong>
+            <small>Generated report preview</small>
+          </div>
+          <div class="metric-grid">
+            <div class="metric-card"><span>תנועות</span><strong>1,284</strong></div>
+            <div class="metric-card"><span>ניירות</span><strong>47</strong></div>
+            <div class="metric-card"><span>שורות FIFO</span><strong>356</strong></div>
+            <div class="metric-card warning"><span>התראות</span><strong>12</strong></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-head">
+              <span>רווח / הפסד לפי מטבע</span>
+              <b>₪ / $</b>
+            </div>
+            <div class="bars" aria-hidden="true">
+              <i style="height: 58%"></i>
+              <i style="height: 82%"></i>
+              <i style="height: 44%"></i>
+              <i style="height: 68%"></i>
+              <i style="height: 36%"></i>
+            </div>
+          </div>
+          <div class="insights-card">
+            <strong>5 תובנות מרכזיות</strong>
+            <p>ניירות בולטים, פוזיציות פתוחות, חריגות אימות, אירועי הון ושער דולר רלוונטי לדוח.</p>
+          </div>
+        </div>
+      </aside>
+    </section>
+
+    <section class="section intro" id="product">
+      <div class="section-copy">
+        <p class="eyebrow dark">הבעיה</p>
+        <h2>דוחות בנק הם לא מוצר ניתוח. הם חומר גלם.</h2>
+        <p>
+          מי שמחזיק ניירות ערך יודע שהאתגר אינו רק לחשב. האתגר הוא לזהות מבני דוחות שונים, לנקות שורות לא רלוונטיות, לשמור עקביות בין קבצים, לטפל בפעולות הון, ולהפיק תוצאה שאפשר לבדוק, להסביר ולמסור הלאה.
+        </p>
+      </div>
+      <div class="value-stack">
+        <article>
+          <span>01</span>
+          <h3>קולטת דוחות Excel</h3>
+          <p>כולל זיהוי שורת כותרות, aliases לעמודות ותבניות מקומיות לדוחות חדשים.</p>
+        </article>
+        <article>
+          <span>02</span>
+          <h3>מחשבת FIFO</h3>
+          <p>כולל עמלות בעלות הקנייה ובתמורת המכירה, פוזיציות פתוחות והתראות אימות.</p>
+        </article>
+        <article>
+          <span>03</span>
+          <h3>מייצאת Excel מקצועי</h3>
+          <p>דשבורד, סיכום, עסקאות FIFO, פוזיציות פתוחות, פעולות מקור, אירועי הון ובעיות אימות.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section feature-section" id="features">
+      <div class="section-heading center">
+        <p class="eyebrow dark">יכולות ליבה</p>
+        <h2>לא עוד גיליון ידני. מנוע ניתוח פיננסי מקומי.</h2>
+      </div>
+
+      <div class="features-grid">
+        <article class="feature-card">
+          <div class="feature-icon">FIFO</div>
+          <h3>חישוב רווח / הפסד לפי FIFO</h3>
+          <p>שיוך מכירות לשכבות קנייה, חישוב רווח ממומש, פוזיציות פתוחות וטיפול בסיסי באירועי הון.</p>
+        </article>
+        <article class="feature-card">
+          <div class="feature-icon">XLSX</div>
+          <h3>זיהוי דוחות חכם</h3>
+          <p>איתור אוטומטי של כותרות, ניקוי שורות פתיחה וסיכומים, ונרמול מבני דוחות שונים למבנה אחיד.</p>
+        </article>
+        <article class="feature-card">
+          <div class="feature-icon">AI*</div>
+          <h3>שאלי את הדוח</h3>
+          <p>שאלות מקומיות על הרווחים, התנועות, הפוזיציות, ההתראות ושער הדולר — בלי לשלוח את הקובץ החוצה.</p>
+        </article>
+        <article class="feature-card">
+          <div class="feature-icon">BI</div>
+          <h3>דשבורד ותובנות</h3>
+          <p>תצוגת KPI, חמש תובנות אוטומטיות, ניירות בולטים, פילוח פעולות ושער דולר יציג לפי תאריך.</p>
+        </article>
+        <article class="feature-card">
+          <div class="feature-icon">SEC</div>
+          <h3>Local-first</h3>
+          <p>עיבוד מקומי במחשב. קבצי המקור נשארים אצל המשתמש, וה-session נשמר מקומית.</p>
+        </article>
+        <article class="feature-card">
+          <div class="feature-icon">→</div>
+          <h3>מוכנה למסחור</h3>
+          <p>בסיס נכון ל-Windows Desktop היום, ובהמשך מעבר מסודר ל-Microsoft Store ולמסלול Android.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section workflow" id="workflow">
+      <div class="section-heading">
+        <p class="eyebrow dark">תהליך עבודה</p>
+        <h2>מהקובץ הגולמי ועד דוח עבודה.</h2>
+      </div>
+
+      <div class="timeline">
+        <article>
+          <span>1</span>
+          <h3>מעלים קובצי Excel</h3>
+          <p>דוח אחד של נייר ערך בודד או כמה דוחות יחד. המערכת מזהה את מבנה הקובץ ומנקה רעשים.</p>
+        </article>
+        <article>
+          <span>2</span>
+          <h3>ממפים דוח חדש פעם אחת</h3>
+          <p>אם הדוח לא מזוהה, שומרים תבנית התאמת עמודות מקומית, והיא תשמש גם בהרצות הבאות.</p>
+        </article>
+        <article>
+          <span>3</span>
+          <h3>מריצים ניתוח FIFO</h3>
+          <p>המנוע מנרמל תנועות, מחשב רווחים, מזהה חריגות, ומפריד בין מכירות ממומשות לפוזיציות פתוחות.</p>
+        </article>
+        <article>
+          <span>4</span>
+          <h3>מייצאים קובץ מסודר</h3>
+          <p>מקבלים חוברת Excel עם דשבורד, סיכום, פירוט FIFO, עסקאות מקור, אירועי הון והתראות.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section security" id="security">
+      <div class="security-panel">
+        <div>
+          <p class="eyebrow">פרטיות ואמון</p>
+          <h2>דוחות פיננסיים לא צריכים לצאת מהמחשב כדי לקבל תובנות.</h2>
+          <p>
+            Capital Gains בנויה כיישום Desktop מקומי. זה לא שירות ענן שמבקש להעלות קבצי מקור. הגישה הזו חשובה במיוחד כאשר עובדים עם דוחות השקעות, קבצי בנק ומידע אישי.
+          </p>
+        </div>
+        <ul class="security-list">
+          <li>קבצי מקור נשארים מקומית.</li>
+          <li>תבניות דוחות נשמרות במחשב המשתמש.</li>
+          <li>Google Sign-In משמש לזיהוי וניהול session מקומי.</li>
+          <li>הייצוא הוא קובץ Excel שקוף לבדיקה ולבקרה.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section roadmap" id="roadmap">
+      <div class="section-heading center">
+        <p class="eyebrow dark">Roadmap</p>
+        <h2>מה מגיע בהמשך</h2>
+      </div>
+      <div class="roadmap-grid">
+        <article>
+          <b>01</b>
+          <h3>Microsoft Store</h3>
+          <p>אריזה מסודרת, התקנה נקייה, חתימה, עדכונים ונראות מוצרית מלאה.</p>
+        </article>
+        <article>
+          <b>02</b>
+          <h3>העמקת מנוע השאלות</h3>
+          <p>השוואות בין ניירות, סינונים, הסברים עמוקים יותר וניתוחי חריגה.</p>
+        </article>
+        <article>
+          <b>03</b>
+          <h3>Android / Google Play</h3>
+          <p>לא לפני הפרדה מלאה בין ליבת הניתוח לבין הממשק, כדי לשמור על יציבות ותחזוקה.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section faq" id="faq">
+      <div class="section-heading">
+        <p class="eyebrow dark">FAQ</p>
+        <h2>שאלות מהירות לפני התקנה</h2>
+      </div>
+      <div class="faq-grid">
+        <details open>
+          <summary>האם זו אפליקציית מס?</summary>
+          <p>לא. זו אפליקציית ניתוח וחישוב שמסייעת בהכנת נתונים, בדיקה והפקת דוח. לפני שימוש רשמי מול לקוח או רשות מס, יש לבצע אימות מקצועי מול דוחות המקור.</p>
+        </details>
+        <details>
+          <summary>האם הקבצים נשלחים לענן?</summary>
+          <p>לא בגישה הנוכחית. האפליקציה מיועדת לעבודה מקומית במחשב, כולל תבניות התאמת דוחות ו-session.</p>
+        </details>
+        <details>
+          <summary>אילו דוחות נתמכים?</summary>
+          <p>כרגע קיימת תמיכה בדוחות Excel של אגיס ולאומי, יחד עם זיהוי גנרי לפי headers נפוצים ותבניות מיפוי לדוחות חדשים.</p>
+        </details>
+        <details>
+          <summary>מה מקבלים בסוף?</summary>
+          <p>קובץ Excel עם Dashboard, Summary, Realized FIFO, Open Positions, Transactions, Corporate Actions ו-Validation Issues.</p>
+        </details>
+      </div>
+    </section>
+
+    <section class="final-cta" id="waitlist">
+      <div>
+        <p class="eyebrow">Capital Gains</p>
+        <h2>הגרסה הראשונה מוכנה לבדיקה. עכשיו צריך להפוך אותה למוצר.</h2>
+        <p>העמוד מוכן לשמש כבסיס שיווקי עד העלייה ל-Microsoft Store, ובהמשך יתאים גם לקמפיין הורדה ול-Google Play.</p>
+      </div>
+      <div class="final-actions">
+        <a class="btn primary" href="https://github.com/ygf2703/capital_gains" target="_blank" rel="noreferrer">פתיחת הפרויקט ב-GitHub</a>
+        <a class="btn ghost" href="mailto:noamfrostig@gmail.com?subject=Capital%20Gains%20Early%20Access">בקשת Early Access</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <span>© 2026 Capital Gains. Analyze. Invest. Grow.</span>
+    <span>המידע אינו מהווה ייעוץ השקעות, ייעוץ מס או תחליף לבדיקה מקצועית.</span>
+  </footer>
+</body>
+</html>
