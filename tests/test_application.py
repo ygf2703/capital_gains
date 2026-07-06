@@ -77,6 +77,21 @@ class ApplicationWorkflowTests(unittest.TestCase):
             self.assertEqual(session.provider, "local")
             self.assertEqual(workflow.state.user_identity.display_name, "Liat Cohen")
 
+    def test_sign_out_resets_workflow_identity(self) -> None:
+        with TemporaryDirectory() as tmp:
+            auth = AuthService(
+                profile_path=Path(tmp) / "profile.json",
+                token_path=Path(tmp) / "token.json",
+                users_path=Path(tmp) / "users.json",
+            )
+            workflow = CapitalGainsWorkflow(auth_service=auth)
+            workflow.register_local_user("Liat Cohen", "liat@gmail.com", "secret12")
+
+            workflow.sign_out()
+
+            self.assertFalse(workflow.state.auth_session.connected)
+            self.assertEqual(workflow.state.auth_session.email, "")
+
 
 if __name__ == "__main__":
     unittest.main()

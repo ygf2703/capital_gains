@@ -6,6 +6,7 @@ import tkinter as tk
 from datetime import date, datetime
 from pathlib import Path
 from tkinter import filedialog, ttk
+from typing import Callable
 
 import customtkinter as ctk
 
@@ -270,9 +271,15 @@ def _ask_dialog(
 
 
 class GoogleSetupDialog(ctk.CTkToplevel):
-    def __init__(self, parent: "LoginDialog") -> None:
+    def __init__(
+        self,
+        parent,
+        app: "CapitalGainsApp",
+        on_configured: Callable[[], None] | None = None,
+    ) -> None:
         super().__init__(parent)
-        self.parent_dialog = parent
+        self.app = app
+        self.on_configured = on_configured
         self.title(ui_title("הגדרת Google"))
         self.geometry("560x420")
         self.minsize(520, 380)
@@ -401,7 +408,7 @@ class GoogleSetupDialog(ctk.CTkToplevel):
         self._refresh_status()
 
     def _refresh_status(self) -> None:
-        status = self.parent_dialog.parent.auth_service.inspect_google_configuration()
+        status = self.app.auth_service.inspect_google_configuration()
         if status.configured:
             self.status_badge.configure(
                 text=ui_text("מוכן לחיבור"),
@@ -450,7 +457,7 @@ class GoogleSetupDialog(ctk.CTkToplevel):
             return
 
         try:
-            self.parent_dialog.parent.auth_service.install_google_configuration(Path(selected))
+            self.app.auth_service.install_google_configuration(Path(selected))
         except AuthConfigurationError as exc:
             _show_dialog(self, "קובץ לא תקין", str(exc), kind="error")
             return
@@ -459,14 +466,227 @@ class GoogleSetupDialog(ctk.CTkToplevel):
             return
 
         self._refresh_status()
-        self.parent_dialog._refresh_google_option()
-        self.parent_dialog._set_status("חיבור Google הוגדר. אפשר להמשיך להתחברות.", PALETTE["positive"])
+        if self.on_configured is not None:
+            self.on_configured()
 
     def _finish(self) -> None:
         if not self.ready:
             return
         self.proceed = True
         self.destroy()
+
+
+class AccountSettingsDialog(ctk.CTkToplevel):
+    def __init__(self, app: "CapitalGainsApp") -> None:
+        super().__init__(app)
+        self.app = app
+        self.title(ui_title("החשבון וההגדרות"))
+        self.geometry("620x560")
+        self.minsize(580, 520)
+        self.transient(app)
+        self.grab_set()
+        self.configure(fg_color=PALETTE["bg"])
+
+        shell = ctk.CTkFrame(
+            self,
+            fg_color=PALETTE["panel"],
+            corner_radius=14,
+            border_width=1,
+            border_color=PALETTE["line"],
+        )
+        shell.pack(fill="both", expand=True, padx=18, pady=18)
+        shell.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(
+            shell,
+            text=ui_text("חשבון והתחברות"),
+            font=ui_font(21, "bold"),
+            text_color=PALETTE["text"],
+            anchor="e",
+        ).grid(row=0, column=0, padx=18, pady=(18, 6), sticky="ew")
+        ctk.CTkLabel(
+            shell,
+            text=ui_text("כאן אפשר לראות מי מחובר, לנהל את Google, ולהחליף או לנתק חשבון לפי הצורך."),
+            font=ui_font(12),
+            text_color=PALETTE["muted"],
+            anchor="e",
+            justify="right",
+            wraplength=540,
+        ).grid(row=1, column=0, padx=18, pady=(0, 14), sticky="ew")
+
+        self.account_frame = ctk.CTkFrame(shell, fg_color=PALETTE["panel_alt"], corner_radius=12, border_width=1, border_color=PALETTE["line"])
+        self.account_frame.grid(row=2, column=0, padx=18, pady=(0, 12), sticky="ew")
+        self.account_frame.grid_columnconfigure(0, weight=1)
+        self.account_badge = ctk.CTkLabel(self.account_frame, text="", font=ui_font(12, "bold"), corner_radius=14, height=28)
+        self.account_badge.grid(row=0, column=0, padx=16, pady=(14, 8), sticky="e")
+        self.account_name_label = ctk.CTkLabel(self.account_frame, text="", font=ui_font(18, "bold"), text_color=PALETTE["text"], anchor="e")
+        self.account_name_label.grid(row=1, column=0, padx=16, pady=(0, 2), sticky="ew")
+        self.account_email_label = ctk.CTkLabel(self.account_frame, text="", font=ui_font(12), text_color=PALETTE["muted"], anchor="e")
+        self.account_email_label.grid(row=2, column=0, padx=16, pady=(0, 4), sticky="ew")
+        self.account_hint_label = ctk.CTkLabel(
+            self.account_frame,
+            text="",
+            font=ui_font(11),
+            text_color=PALETTE["muted"],
+            anchor="e",
+            justify="right",
+            wraplength=520,
+        )
+        self.account_hint_label.grid(row=3, column=0, padx=16, pady=(0, 14), sticky="ew")
+
+        self.google_frame = ctk.CTkFrame(shell, fg_color=PALETTE["panel_alt"], corner_radius=12, border_width=1, border_color=PALETTE["line"])
+        self.google_frame.grid(row=3, column=0, padx=18, pady=(0, 12), sticky="ew")
+        self.google_frame.grid_columnconfigure(0, weight=1)
+        ctk.CTkLabel(
+            self.google_frame,
+            text=ui_text("חיבור Google"),
+            font=ui_font(16, "bold"),
+            text_color=PALETTE["text"],
+            anchor="e",
+        ).grid(row=0, column=0, padx=16, pady=(14, 4), sticky="ew")
+        self.google_badge = ctk.CTkLabel(self.google_frame, text="", font=ui_font(12, "bold"), corner_radius=14, height=28)
+        self.google_badge.grid(row=1, column=0, padx=16, pady=(0, 8), sticky="e")
+        self.google_status_label = ctk.CTkLabel(
+            self.google_frame,
+            text="",
+            font=ui_font(11),
+            text_color=PALETTE["muted"],
+            anchor="e",
+            justify="right",
+            wraplength=520,
+        )
+        self.google_status_label.grid(row=2, column=0, padx=16, pady=(0, 6), sticky="ew")
+        self.google_path_label = ctk.CTkLabel(
+            self.google_frame,
+            text="",
+            font=ui_font(11),
+            text_color=PALETTE["muted"],
+            anchor="e",
+            justify="right",
+            wraplength=520,
+        )
+        self.google_path_label.grid(row=3, column=0, padx=16, pady=(0, 14), sticky="ew")
+
+        action_row = ctk.CTkFrame(shell, fg_color="transparent")
+        action_row.grid(row=4, column=0, padx=18, pady=(0, 10), sticky="ew")
+
+        self.primary_action_button = ctk.CTkButton(
+            action_row,
+            text="",
+            font=ui_font(13, "bold"),
+            command=self._primary_action,
+            fg_color=PALETTE["primary"],
+            hover_color=PALETTE["primary_hover"],
+            text_color=PALETTE["button_text"],
+            border_width=1,
+            border_color=PALETTE["primary_border"],
+            width=168,
+        )
+        self.primary_action_button.pack(side="right")
+
+        self.google_action_button = ctk.CTkButton(
+            action_row,
+            text=ui_text("הגדר / החלף Google"),
+            font=ui_font(13, "bold"),
+            command=self._configure_google,
+            fg_color=PALETTE["secondary"],
+            hover_color=PALETTE["secondary_hover"],
+            text_color=PALETTE["text"],
+            border_width=1,
+            border_color=PALETTE["secondary_border"],
+            width=168,
+        )
+        self.google_action_button.pack(side="right", padx=(0, 10))
+
+        ctk.CTkButton(
+            action_row,
+            text=ui_text("רענן"),
+            font=ui_font(13, "bold"),
+            command=self._refresh,
+            fg_color=PALETTE["secondary"],
+            hover_color=PALETTE["secondary_hover"],
+            text_color=PALETTE["text"],
+            border_width=1,
+            border_color=PALETTE["secondary_border"],
+            width=92,
+        ).pack(side="left")
+
+        footer = ctk.CTkFrame(shell, fg_color="transparent")
+        footer.grid(row=5, column=0, padx=18, pady=(0, 18), sticky="ew")
+        ctk.CTkButton(
+            footer,
+            text=ui_text("סגור"),
+            font=ui_font(13, "bold"),
+            command=self.destroy,
+            fg_color=PALETTE["secondary"],
+            hover_color=PALETTE["secondary_hover"],
+            text_color=PALETTE["text"],
+            border_width=1,
+            border_color=PALETTE["secondary_border"],
+            width=96,
+        ).pack(side="left")
+
+        self._refresh()
+
+    def _refresh(self) -> None:
+        session = self.app.auth_session
+        if session.connected and session.email:
+            provider_label = "Google" if session.provider == "google" else "אימייל וסיסמה"
+            self.account_badge.configure(text=ui_text("מחובר"), fg_color=PALETTE["card_blue"], text_color=PALETTE["positive"])
+            self.account_name_label.configure(text=ui_text(self.app.user_identity.display_name or session.email))
+            self.account_email_label.configure(text=ui_text(session.email))
+            self.account_hint_label.configure(text=ui_text(f"החשבון מחובר דרך {provider_label}. הניתוחים נשמרים מקומית על המחשב."))
+            self.primary_action_button.configure(text=ui_text("התנתקות"), fg_color=PALETTE["primary"], hover_color=PALETTE["primary_hover"])
+        else:
+            self.account_badge.configure(text=ui_text("לא מחובר"), fg_color=PALETTE["card_yellow"], text_color=PALETTE["warning"])
+            self.account_name_label.configure(text=ui_text("עדיין לא בוצעה התחברות"))
+            self.account_email_label.configure(text=ui_text("אפשר להתחבר עם אימייל וסיסמה, או להגדיר Google."))
+            self.account_hint_label.configure(text=ui_text("החיבור נדרש כדי להפעיל את האפליקציה ולשמור חוויה אישית ויציבה."))
+            self.primary_action_button.configure(text=ui_text("התחברות / הרשמה"), fg_color=PALETTE["primary"], hover_color=PALETTE["primary_hover"])
+
+        google_status = self.app.auth_service.inspect_google_configuration()
+        if google_status.configured:
+            source_labels = {
+                "env": "מוזן ממשתנה סביבה",
+                "app": "נשמר בתיקיית האפליקציה",
+                "local": "נשמר בתיקיית המשתמש",
+                "custom": "מוגדר ממקור מותאם",
+            }
+            source_text = source_labels.get(google_status.source, "מוכן לשימוש")
+            self.google_badge.configure(text=ui_text("Google מוכן"), fg_color=PALETTE["card_blue"], text_color=PALETTE["positive"])
+            self.google_status_label.configure(text=ui_text(f"חיבור Google זמין. {source_text}."))
+        else:
+            self.google_badge.configure(text=ui_text("Google לא הוגדר"), fg_color=PALETTE["card_yellow"], text_color=PALETTE["warning"])
+            self.google_status_label.configure(text=ui_text(google_status.message or "יש לבחור קובץ Google Client Secret תקין."))
+        path_text = f"מיקום: {google_status.path}" if google_status.path else ""
+        self.google_path_label.configure(text=ui_text(path_text))
+
+    def _primary_action(self) -> None:
+        if self.app.auth_session.connected and self.app.auth_session.email:
+            if not _ask_dialog(self, "התנתקות", "לנתק את החשבון הנוכחי ולחזור למסך ההתחברות?", kind="question", confirm_text="התנתק", cancel_text="חזור"):
+                return
+            self.app.workflow.sign_out()
+            self.app.status.configure(text=ui_text("ההתנתקות הושלמה"))
+            self.app._refresh_identity_ui()
+            self.destroy()
+            self.app._require_authentication()
+            return
+
+        self.destroy()
+        self.app._require_authentication()
+
+    def _configure_google(self) -> None:
+        dialog = GoogleSetupDialog(
+            self,
+            self.app,
+            on_configured=lambda: (
+                self.app.status.configure(text=ui_text("חיבור Google הוגדר בהצלחה")),
+                self.app._refresh_identity_ui(),
+                self._refresh(),
+            ),
+        )
+        self.wait_window(dialog)
+        self._refresh()
 
 
 class CapitalGainsApp(BaseWindow):
@@ -496,6 +716,7 @@ class CapitalGainsApp(BaseWindow):
         self.question_var = tk.StringVar()
         self.chat_box: ctk.CTkTextbox | None = None
         self.login_dialog: LoginDialog | None = None
+        self.account_dialog: AccountSettingsDialog | None = None
 
         self._build_ui()
 
@@ -592,7 +813,7 @@ class CapitalGainsApp(BaseWindow):
         )
         self.auth_hint_label.grid(row=1, column=0, padx=14, pady=(0, 10), sticky="ew")
 
-        self.auth_button = self._button(auth_frame, "התחברות", self.toggle_auth_session, width=164)
+        self.auth_button = self._button(auth_frame, "החשבון שלי", self.open_account_settings, width=164)
         self.auth_button.grid(row=2, column=0, padx=14, pady=(0, 12), sticky="e")
 
         toolbar = ctk.CTkFrame(
@@ -1023,14 +1244,14 @@ class CapitalGainsApp(BaseWindow):
             profile_text = self.auth_session.email
             provider_label = "Google" if self.auth_session.provider == "google" else "אימייל וסיסמה"
             hint_text = f"מחוברת דרך {provider_label}. הקבצים והניתוחים נשארים מקומיים על המחשב."
-            button_text = "התנתקות"
+            button_text = "החשבון שלי"
         else:
-            profile_text = "נדרש חיבור משתמש"
+            profile_text = "החשבון לא מחובר"
             if self.auth_service.has_google_configuration():
                 hint_text = "אפשר להתחבר עם אימייל וסיסמה או עם Google לפני שימוש באפליקציה."
             else:
                 hint_text = "אפשר להתחבר עם אימייל וסיסמה. חיבור Google זמין אחרי הגדרת client secret."
-            button_text = "התחברות / הרשמה"
+            button_text = "חשבון / כניסה"
 
         self.profile_label.configure(text=ui_text(profile_text))
         self.auth_hint_label.configure(text=ui_text(hint_text))
@@ -1043,6 +1264,13 @@ class CapitalGainsApp(BaseWindow):
             self.login_dialog.lift()
             return
         self.login_dialog = LoginDialog(self)
+
+    def open_account_settings(self) -> None:
+        if self.account_dialog is not None and self.account_dialog.winfo_exists():
+            self.account_dialog.lift()
+            self.account_dialog.focus_force()
+            return
+        self.account_dialog = AccountSettingsDialog(self)
 
     def toggle_auth_session(self) -> None:
         if self.auth_session.connected and self.auth_session.email:
@@ -1062,6 +1290,9 @@ class CapitalGainsApp(BaseWindow):
         if self.login_dialog is not None and self.login_dialog.winfo_exists():
             self.login_dialog.destroy()
         self.login_dialog = None
+        if self.account_dialog is not None and self.account_dialog.winfo_exists():
+            self.account_dialog.destroy()
+        self.account_dialog = None
         self._refresh_identity_ui()
 
     def configure_columns(self) -> None:
