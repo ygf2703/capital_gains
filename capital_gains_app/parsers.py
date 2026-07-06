@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any
 
@@ -9,6 +10,7 @@ import pandas as pd
 from openpyxl import load_workbook
 
 from .models import ActionType, Transaction, ValidationIssue
+from .report_templates import ReportTemplate, load_report_templates
 
 
 @dataclass(frozen=True, slots=True)
@@ -24,6 +26,16 @@ class HeaderDetection:
     broker: str
     column_map: dict[str, str]
     confidence: float
+    template_name: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class HeaderPreview:
+    source_file: str
+    sheet: str
+    header_row_index: int
+    headers: list[str]
+    sample_rows: list[list[str]]
 
 
 BROKER_LAYOUTS = (
@@ -69,26 +81,59 @@ BROKER_LAYOUTS = (
     ),
 )
 
+GENERIC_REQUIRED_FIELDS = ("trade_date", "action", "quantity")
+GENERIC_VALUE_FIELDS = ("net_amount", "price")
+GENERIC_SECURITY_FIELDS = ("security_id", "symbol", "security_name")
+GENERIC_FIELD_ALIASES: dict[str, tuple[str, ...]] = {
+    "reference": ("reference", "transaction id", "אסמכתא", "מספר אסמכתא", "אסמכתה"),
+    "trade_date": ("trade date", "execution date", "date", "transaction date", "תאריך", "תאריך ביצוע", "תאריך עסקה"),
+    "settlement_date": ("settlement date", "value date", "settlement", "תאריך ערך"),
+    "action": ("action", "transaction", "activity", "operation", "type", "פעולה", "סוג פעולה", "סוג"),
+    "quantity": ("quantity", "qty", "units", "shares", "executed quantity", "כמות", "יחידות", "מניות"),
+    "price": ("price", "trade price", "execution price", "unit price", "שער", "מחיר", "שער ביצוע", "מחיר ביצוע"),
+    "net_amount": (
+        "net amount",
+        "net proceeds",
+        "proceeds",
+        "amount",
+        "gross amount",
+        "תמורה נטו",
+        "תמורה",
+        "סכום",
+        "שווי",
+    ),
+    "security_id": ("security id", "cusip", "isin", "security no", "מספר נייר", "מס נייר", "מספר בורסה", 'מס" נייר'),
+    "symbol": ("symbol", "ticker", "security", "code", "סימול", "קוד"),
+    "security_name": ("security name", "description", "name", "instrument", 'שם ני"ע', "שם נייר ערך", "שם נייר", "תיאור"),
+    "currency": ("currency", "base currency", "trade currency", "מטבע", "מטבע עסקה"),
+    "report_currency": ("report currency", "currency report", "מטבע דיווח"),
+    "commission": ("commission", "commissions", "fee", "fees", "עמלה", "עמלות", "דמי ניהול"),
+    "fees": ("other fees", "fees", "charges", "חיובים", "דמי"),
+    "bank_reported_gain_loss": ("gain/loss", "profit/loss", "reported gain", "רווח/הפסד", "רווח הפסד"),
+}
+
 
 def parse_workbooks(paths: list[str | Path]) -> tuple[list[Transaction], list[ValidationIssue]]:
     transactions: list[Transaction] = []
     issues: list[ValidationIssue] = []
+    templates = load_report_templates()
     for path_like in paths:
         path = Path(path_like)
-        parsed, file_issues = parse_workbook(path)
+        parsed, file_issues = parse_workbook(path, templates=templates)
         transactions.extend(parsed)
         issues.extend(file_issues)
     return transactions, issues
 
 
-def parse_workbook(path: Path) -> tuple[list[Transaction], list[ValidationIssue]]:
+def parse_workbook(path: Path, templates: list[ReportTemplate] | None = None) -> tuple[list[Transaction], list[ValidationIssue]]:
     workbook = load_workbook(path, read_only=True, data_only=True)
     all_transactions: list[Transaction] = []
     issues: list[ValidationIssue] = []
+    template_list = templates if templates is not None else load_report_templates()
     try:
         for sheet in workbook.worksheets:
             rows = list(sheet.iter_rows(values_only=True))
-            detection = _detect_header(rows)
+            detection = _detect_header(rows, template_list)
             if detection is None:
                 issues.append(
                     ValidationIssue(
@@ -97,6 +142,7 @@ def parse_workbook(path: Path) -> tuple[list[Transaction], list[ValidationIssue]
                         source_file=path.name,
                         sheet=sheet.title,
                         row_number=1,
+                        field="header",
                     )
                 )
                 continue
@@ -108,17 +154,58 @@ def parse_workbook(path: Path) -> tuple[list[Transaction], list[ValidationIssue]
 
             if detection.broker == "agis":
                 parsed, sheet_issues = _parse_agis(df, path.name, sheet.title, detection)
-            else:
+            elif detection.broker == "leumi":
                 parsed, sheet_issues = _parse_leumi(df, path.name, sheet.title, detection)
+            else:
+                parsed, sheet_issues = _parse_generic(df, path.name, sheet.title, detection)
             all_transactions.extend(parsed)
             issues.extend(sheet_issues)
+            if detection.broker == "generic":
+                issues.append(
+                    ValidationIssue(
+                        severity="info",
+                        message=f"Generic header mapping used (confidence {detection.confidence:.0%})",
+                        source_file=path.name,
+                        sheet=sheet.title,
+                        row_number=detection.header_row_index,
+                        field="header",
+                        value=detection.template_name or "generic",
+                    )
+                )
     finally:
         workbook.close()
 
     return all_transactions, issues
 
 
-def _detect_header(rows: list[tuple[Any, ...]]) -> HeaderDetection | None:
+def inspect_workbook_headers(path: Path) -> list[HeaderPreview]:
+    workbook = load_workbook(path, read_only=True, data_only=True)
+    previews: list[HeaderPreview] = []
+    try:
+        for sheet in workbook.worksheets:
+            rows = list(sheet.iter_rows(values_only=True))
+            best_index = _best_header_candidate_index(rows)
+            if best_index is None:
+                continue
+            headers = [_clean_header(value) for value in rows[best_index - 1] if _clean_header(value)]
+            sample_rows: list[list[str]] = []
+            for row in rows[best_index : best_index + 3]:
+                sample_rows.append([_text(cell) for cell in row[: min(len(row), 8)] if _text(cell)])
+            previews.append(
+                HeaderPreview(
+                    source_file=path.name,
+                    sheet=sheet.title,
+                    header_row_index=best_index,
+                    headers=headers,
+                    sample_rows=sample_rows,
+                )
+            )
+    finally:
+        workbook.close()
+    return previews
+
+
+def _detect_header(rows: list[tuple[Any, ...]], templates: list[ReportTemplate]) -> HeaderDetection | None:
     for index, row in enumerate(rows, start=1):
         actual_headers = [_clean_header(v) for v in row if _clean_header(v)]
         normalized_map = {_normalize_header_text(header): header for header in actual_headers}
@@ -128,6 +215,24 @@ def _detect_header(rows: list[tuple[Any, ...]]) -> HeaderDetection | None:
                 continue
             confidence = len(column_map) / len(layout.field_aliases)
             return HeaderDetection(index, layout.broker, column_map, confidence)
+        template_detection = _match_template(normalized_map, templates)
+        if template_detection is not None:
+            return HeaderDetection(
+                header_row_index=index,
+                broker=template_detection.broker,
+                column_map=template_detection.column_map,
+                confidence=template_detection.confidence,
+                template_name=template_detection.template_name,
+            )
+        generic_detection = _match_generic(normalized_map)
+        if generic_detection is not None:
+            return HeaderDetection(
+                header_row_index=index,
+                broker=generic_detection.broker,
+                column_map=generic_detection.column_map,
+                confidence=generic_detection.confidence,
+                template_name=generic_detection.template_name,
+            )
     return None
 
 
@@ -148,6 +253,82 @@ def _find_matching_header(normalized_map: dict[str, str], aliases: tuple[str, ..
         if actual:
             return actual
     return ""
+
+
+def _match_template(normalized_map: dict[str, str], templates: list[ReportTemplate]) -> HeaderDetection | None:
+    best_detection: HeaderDetection | None = None
+    available_headers = set(normalized_map)
+    for template in templates:
+        matched_fields: dict[str, str] = {}
+        for field_name, saved_header in template.field_map.items():
+            actual = normalized_map.get(_normalize_header_text(saved_header))
+            if actual:
+                matched_fields[field_name] = actual
+        if not _generic_fields_are_sufficient(matched_fields):
+            continue
+        score = len({field for field in matched_fields if matched_fields[field]}) / max(len(template.field_map), 1)
+        if best_detection is None or score > best_detection.confidence:
+            best_detection = HeaderDetection(
+                header_row_index=0,
+                broker=template.broker or "generic",
+                column_map=matched_fields,
+                confidence=score,
+                template_name=template.name,
+            )
+    return best_detection
+
+
+def _match_generic(normalized_map: dict[str, str]) -> HeaderDetection | None:
+    used_headers: set[str] = set()
+    field_scores: dict[str, float] = {}
+    field_map: dict[str, str] = {}
+    field_order = [
+        "trade_date",
+        "action",
+        "quantity",
+        "security_id",
+        "symbol",
+        "security_name",
+        "net_amount",
+        "price",
+        "currency",
+        "report_currency",
+        "commission",
+        "fees",
+        "reference",
+        "bank_reported_gain_loss",
+        "settlement_date",
+    ]
+    for field_name in field_order:
+        aliases = GENERIC_FIELD_ALIASES[field_name]
+        best_header = ""
+        best_score = 0.0
+        for normalized_header, actual_header in normalized_map.items():
+            if normalized_header in used_headers:
+                continue
+            score = max(_header_similarity(normalized_header, _normalize_header_text(alias)) for alias in aliases)
+            if score > best_score:
+                best_header = actual_header
+                best_score = score
+        if best_header and best_score >= 0.74:
+            field_map[field_name] = best_header
+            used_headers.add(_normalize_header_text(best_header))
+            field_scores[field_name] = best_score
+
+    if not _generic_fields_are_sufficient(field_map):
+        return None
+    confidence = sum(field_scores.values()) / max(len(field_scores), 1)
+    return HeaderDetection(0, "generic", field_map, confidence, template_name="")
+
+
+def _generic_fields_are_sufficient(field_map: dict[str, str]) -> bool:
+    if not all(field in field_map for field in GENERIC_REQUIRED_FIELDS):
+        return False
+    if not any(field in field_map for field in GENERIC_VALUE_FIELDS):
+        return False
+    if not any(field in field_map for field in GENERIC_SECURITY_FIELDS):
+        return False
+    return True
 
 
 def _parse_agis(df: pd.DataFrame, source_file: str, sheet: str, detection: HeaderDetection) -> tuple[list[Transaction], list[ValidationIssue]]:
@@ -256,6 +437,64 @@ def _parse_leumi(df: pd.DataFrame, source_file: str, sheet: str, detection: Head
     return transactions, issues
 
 
+def _parse_generic(df: pd.DataFrame, source_file: str, sheet: str, detection: HeaderDetection) -> tuple[list[Transaction], list[ValidationIssue]]:
+    transactions: list[Transaction] = []
+    issues: list[ValidationIssue] = []
+    for position, row in df.iterrows():
+        row_number = detection.header_row_index + 1 + int(position)
+        action_raw = _text(_value(row, detection.column_map, "action"))
+        trade_date = _parse_flexible_date(_value(row, detection.column_map, "trade_date"))
+        quantity_raw = _value(row, detection.column_map, "quantity")
+        quantity = _num(quantity_raw)
+        price_raw = _value(row, detection.column_map, "price")
+        price = _num(price_raw)
+        net_amount_raw = _value(row, detection.column_map, "net_amount")
+        net_amount = _num(net_amount_raw)
+
+        if not action_raw or not trade_date:
+            continue
+        if action_raw.startswith("סה") or _normalize_header_text(action_raw) in {"total", "summary"}:
+            continue
+
+        action_type = _map_generic_action(action_raw, quantity, net_amount)
+        currency = _normalize_currency(_value(row, detection.column_map, "currency"))
+        report_currency = _normalize_currency(_value(row, detection.column_map, "report_currency"))
+        if report_currency == "UNKNOWN":
+            report_currency = currency
+        transaction = Transaction(
+            source_file=source_file,
+            sheet=sheet,
+            row_number=row_number,
+            broker="Generic",
+            trade_date=trade_date,
+            settlement_date=_parse_flexible_date(_value(row, detection.column_map, "settlement_date")),
+            action_raw=action_raw,
+            action_type=action_type,
+            security_id=_text(_value(row, detection.column_map, "security_id")),
+            symbol=_text(_value(row, detection.column_map, "symbol")),
+            security_name=_text(_value(row, detection.column_map, "security_name")),
+            quantity=quantity,
+            price=price,
+            currency=currency,
+            report_currency=report_currency,
+            commission=_num(_value(row, detection.column_map, "commission")),
+            fees=_num(_value(row, detection.column_map, "fees")),
+            net_amount=net_amount,
+            bank_reported_gain_loss=_optional_num(_value(row, detection.column_map, "bank_reported_gain_loss")),
+            reference=_text(_value(row, detection.column_map, "reference")),
+            description=_text(_value(row, detection.column_map, "security_name"))
+            or _text(_value(row, detection.column_map, "symbol"))
+            or _text(_value(row, detection.column_map, "security_id")),
+            raw=_row_to_dict(row),
+        )
+        _validate_transaction(transaction, issues)
+        if transaction.action_type in {ActionType.BUY, ActionType.SELL} and _is_missing(price_raw) and _is_missing(net_amount_raw):
+            issues.append(_issue(transaction, "error", "Missing both price and net amount", "price", price_raw))
+        if transaction.action_type != ActionType.IGNORE:
+            transactions.append(transaction)
+    return transactions, issues
+
+
 def _map_agis_action(action: str, quantity: float) -> ActionType:
     normalized = action.strip().lower()
     if normalized == "purchase":
@@ -288,6 +527,29 @@ def _map_leumi_action(action: str, quantity: float, net_amount: float) -> Action
     if normalized == "הקטנת הון":
         return ActionType.CAPITAL_REDUCTION
     if normalized == "פקיעה - נייר":
+        return ActionType.EXPIRE
+    if quantity == 0 and net_amount:
+        return ActionType.CASH
+    return ActionType.IGNORE
+
+
+def _map_generic_action(action: str, quantity: float, net_amount: float) -> ActionType:
+    normalized = _normalize_header_text(action)
+    if any(token in normalized for token in ("buy", "purchase", "קניה", "קנייה", "acquire")):
+        return ActionType.BUY
+    if any(token in normalized for token in ("sell", "sale", "מכירה", "פדיון", "redeem")):
+        return ActionType.SELL
+    if any(token in normalized for token in ("transfer in", "receive", "מקבל בהעברה", "incoming")):
+        return ActionType.TRANSFER_IN
+    if any(token in normalized for token in ("transfer out", "deliver", "outgoing", "מסירה")):
+        return ActionType.TRANSFER_OUT
+    if "reverse split" in normalized or "split out" in normalized:
+        return ActionType.SPLIT_OUT
+    if "split in" in normalized or ("split" in normalized and quantity > 0):
+        return ActionType.SPLIT_IN
+    if "capital reduction" in normalized or "הקטנת הון" in normalized:
+        return ActionType.CAPITAL_REDUCTION
+    if "expire" in normalized or "פקיעה" in normalized:
         return ActionType.EXPIRE
     if quantity == 0 and net_amount:
         return ActionType.CASH
@@ -383,6 +645,13 @@ def _parse_date(value: Any, day_first: bool = False) -> datetime | None:
     return parsed.to_pydatetime()
 
 
+def _parse_flexible_date(value: Any) -> datetime | None:
+    parsed = _parse_date(value, day_first=False)
+    if parsed is not None:
+        return parsed
+    return _parse_date(value, day_first=True)
+
+
 def _normalize_currency(value: Any) -> str:
     text = _text(value)
     mapping = {
@@ -394,6 +663,32 @@ def _normalize_currency(value: Any) -> str:
         "ILS": "ILS",
     }
     return mapping.get(text, text or "UNKNOWN")
+
+
+def _header_similarity(left: str, right: str) -> float:
+    if not left or not right:
+        return 0.0
+    if left == right:
+        return 1.0
+    if left in right or right in left:
+        return 0.94
+    left_tokens = set(left.split())
+    right_tokens = set(right.split())
+    overlap = len(left_tokens & right_tokens) / max(len(left_tokens | right_tokens), 1)
+    ratio = SequenceMatcher(None, left, right).ratio()
+    return max(overlap, ratio)
+
+
+def _best_header_candidate_index(rows: list[tuple[Any, ...]]) -> int | None:
+    best_index: int | None = None
+    best_score = 0
+    for index, row in enumerate(rows[:25], start=1):
+        headers = [_clean_header(value) for value in row if _clean_header(value)]
+        score = len(headers)
+        if score > best_score:
+            best_score = score
+            best_index = index
+    return best_index
 
 
 def _serialize(value: Any) -> Any:

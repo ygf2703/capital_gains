@@ -14,7 +14,8 @@ from .dashboard import build_dashboard_summary
 from .exchange_rates import fetch_usd_ils_rate_one_month_back, parse_user_date
 from .exporter import export_result
 from .models import CalculationResult, ExchangeRateSnapshot, Transaction, ValidationIssue
-from .services import calculate_analysis, parse_reports
+from .parsers import HeaderPreview, _normalize_header_text
+from .services import answer_question, calculate_analysis, parse_reports, preview_report_headers, save_generic_report_template
 from .ui_text import ASSISTANT_FONT_FAMILY, load_assistant_font, ui_font, ui_text, ui_title
 from .user_identity import UserIdentity, greeting_for_user, load_user_identity
 
@@ -136,6 +137,8 @@ class CapitalGainsApp(BaseWindow):
         self.profile_label: ctk.CTkLabel | None = None
         self.auth_hint_label: ctk.CTkLabel | None = None
         self.auth_button: ctk.CTkButton | None = None
+        self.question_var = tk.StringVar()
+        self.chat_box: ctk.CTkTextbox | None = None
 
         self._build_ui()
 
@@ -191,14 +194,17 @@ class CapitalGainsApp(BaseWindow):
 
         toolbar = ctk.CTkFrame(self, corner_radius=8, fg_color=PALETTE["panel_glass"], border_width=1, border_color=PALETTE["line"])
         toolbar.grid(row=1, column=0, padx=18, pady=14, sticky="ew")
-        toolbar.grid_columnconfigure(3, weight=1)
+        toolbar.grid_columnconfigure(4, weight=1)
 
         self._button(toolbar, "בחר קבצים", self.add_files).grid(row=0, column=0, padx=(12, 8), pady=12)
         self._button(toolbar, "נקה", self.clear_files, fg_color=PALETTE["secondary"]).grid(row=0, column=1, padx=8, pady=12)
         self._button(toolbar, "צור קובץ אקסל", self.calculate_and_export).grid(row=0, column=2, padx=8, pady=12)
+        self._button(toolbar, "התאמת עמודות", self.configure_columns, fg_color=PALETTE["secondary"], width=132).grid(
+            row=0, column=3, padx=8, pady=12
+        )
 
         exchange_box = ctk.CTkFrame(toolbar, corner_radius=8, fg_color=PALETTE["mist"])
-        exchange_box.grid(row=0, column=4, padx=12, pady=10, sticky="e")
+        exchange_box.grid(row=0, column=5, padx=12, pady=10, sticky="e")
         ctk.CTkLabel(
             exchange_box,
             text=ui_text("תאריך מבוקש"),
@@ -252,6 +258,7 @@ class CapitalGainsApp(BaseWindow):
         panel = ctk.CTkFrame(parent, corner_radius=8, fg_color=PALETTE["panel"], border_width=1, border_color=PALETTE["line"])
         panel.grid(row=0, column=0, sticky="nsew", padx=(0, 12))
         panel.grid_rowconfigure(3, weight=1)
+        panel.grid_rowconfigure(6, weight=1)
         panel.grid_columnconfigure(0, weight=1)
 
         label_text = "גררי לכאן קבצי אקסל או לחצי על בחירת קבצים"
@@ -312,6 +319,43 @@ class CapitalGainsApp(BaseWindow):
             anchor="e",
         )
         self.exchange_status.grid(row=4, column=0, padx=20, pady=(0, 18), sticky="ew")
+
+        ctk.CTkLabel(
+            panel,
+            text=ui_text("שאלי את הדוח"),
+            font=ui_font(16, "bold"),
+            text_color=PALETTE["text"],
+            anchor="e",
+        ).grid(row=5, column=0, padx=20, pady=(0, 6), sticky="ew")
+
+        chat_frame = ctk.CTkFrame(panel, corner_radius=8, fg_color="#0D1013", border_width=1, border_color=PALETTE["line"])
+        chat_frame.grid(row=6, column=0, padx=20, pady=(0, 20), sticky="nsew")
+        chat_frame.grid_columnconfigure(0, weight=1)
+        chat_frame.grid_rowconfigure(0, weight=1)
+
+        self.chat_box = ctk.CTkTextbox(
+            chat_frame,
+            fg_color="#0D1013",
+            text_color=PALETTE["text"],
+            border_width=0,
+            font=ui_font(12),
+            wrap="word",
+        )
+        self.chat_box.grid(row=0, column=0, columnspan=2, padx=12, pady=(12, 8), sticky="nsew")
+        self.chat_box.insert("1.0", ui_text("אחרי ניתוח הקובץ אפשר לשאול כאן על רווחים, תנועות, פוזיציות פתוחות, התראות ושער הדולר."))
+        self.chat_box.configure(state="disabled")
+
+        question_entry = ctk.CTkEntry(
+            chat_frame,
+            textvariable=self.question_var,
+            placeholder_text=ui_text("למשל: כמה תנועות יש בקובץ?"),
+            border_color=PALETTE["line"],
+            justify="right",
+            font=ui_font(12),
+        )
+        question_entry.grid(row=1, column=0, padx=(12, 8), pady=(0, 12), sticky="ew")
+        question_entry.bind("<Return>", lambda _event: self.ask_report_question())
+        self._button(chat_frame, "שאלי", self.ask_report_question, width=84).grid(row=1, column=1, padx=(0, 12), pady=(0, 12))
 
     def _build_dashboard_panel(self, parent: ctk.CTkFrame) -> None:
         dashboard = ctk.CTkScrollableFrame(parent, corner_radius=8, fg_color=PALETTE["panel"], border_width=1, border_color=PALETTE["line"])
@@ -479,6 +523,38 @@ class CapitalGainsApp(BaseWindow):
         self.status.configure(text=ui_text("התחברות Google הושלמה"))
         self._refresh_identity_ui()
 
+    def configure_columns(self) -> None:
+        if not self.files:
+            messagebox.showwarning(ui_title("אין קבצים"), ui_text("בחרי קודם קובץ אקסל אחד לפחות."))
+            return
+        previews = preview_report_headers(self.files)
+        if not previews:
+            messagebox.showwarning(ui_title("לא נמצאו כותרות"), ui_text("לא הצלחתי למצוא שורת כותרות מתאימה בקבצים שנבחרו."))
+            return
+        dialog = MappingTemplateDialog(self, previews[0])
+        self.wait_window(dialog)
+        if dialog.saved:
+            self.status.configure(text=ui_text("תבנית עמודות נשמרה. אפשר להריץ שוב את הניתוח."))
+
+    def ask_report_question(self) -> None:
+        question = self.question_var.get().strip()
+        if not question:
+            return
+        answer = answer_question(self.last_result, question)
+        self._append_chat_entry("שאלה", question)
+        self._append_chat_entry("תשובה", answer)
+        self.question_var.set("")
+
+    def _append_chat_entry(self, role: str, text: str) -> None:
+        if self.chat_box is None:
+            return
+        self.chat_box.configure(state="normal")
+        if self.chat_box.get("1.0", "end-1c").strip():
+            self.chat_box.insert("end", "\n\n")
+        self.chat_box.insert("end", ui_text(f"{role}: {text}"))
+        self.chat_box.see("end")
+        self.chat_box.configure(state="disabled")
+
     def add_files(self) -> None:
         selected = filedialog.askopenfilenames(
             title=ui_title("בחרי דוחות אקסל"),
@@ -538,14 +614,6 @@ class CapitalGainsApp(BaseWindow):
         if not self.files:
             messagebox.showwarning(ui_title("אין קבצים"), ui_text("בחרי לפחות קובץ אקסל אחד."))
             return
-        output = filedialog.asksaveasfilename(
-            title=ui_title("שמרי דוח פיפו"),
-            defaultextension=".xlsx",
-            initialfile=f"fifo_report_{datetime.now():%Y%m%d_%H%M}.xlsx",
-            filetypes=[("חוברת אקסל", "*.xlsx")],
-        )
-        if not output:
-            return
         try:
             requested_date = parse_user_date(self.exchange_date_var.get())
             parsed = parse_reports(self.files)
@@ -553,6 +621,31 @@ class CapitalGainsApp(BaseWindow):
         except Exception as exc:
             messagebox.showerror(ui_title("שגיאה בקריאת הקבצים"), ui_text(str(exc)))
             self.status.configure(text=ui_text("שגיאה בקריאת הקבצים"))
+            return
+
+        unsupported_headers = [issue for issue in issues if issue.field == "header" and issue.severity == "error"]
+        if unsupported_headers:
+            matching_previews = preview_report_headers(self.files)
+            preview = next(
+                (
+                    item
+                    for item in matching_previews
+                    if item.source_file == unsupported_headers[0].source_file and item.sheet == unsupported_headers[0].sheet
+                ),
+                matching_previews[0] if matching_previews else None,
+            )
+            if preview is not None:
+                dialog = MappingTemplateDialog(self, preview)
+                self.wait_window(dialog)
+                if dialog.saved:
+                    self.status.configure(text=ui_text("נשמרה תבנית חדשה. מריץ שוב את הניתוח עם המיפוי המעודכן..."))
+                    self.calculate_and_export()
+                    return
+            messagebox.showwarning(
+                ui_title("כותרות לא מזוהות"),
+                ui_text("לא זוהתה שורת כותרות נתמכת. אפשר להשתמש ב'התאמת עמודות' כדי ללמד את המערכת את הדוח."),
+            )
+            self.status.configure(text=ui_text("נדרש מיפוי עמודות לדוח החדש"))
             return
 
         serious = [issue for issue in issues if issue.severity == "error"]
@@ -574,6 +667,15 @@ class CapitalGainsApp(BaseWindow):
                 messagebox.showwarning(ui_title("נותרו שגיאות"), ui_text("לא כל שורות השגיאה תוקנו. החישוב נעצר."))
                 self.status.configure(text=ui_text("נותרו שגיאות לתיקון"))
                 return
+
+        output = filedialog.asksaveasfilename(
+            title=ui_title("שמרי דוח פיפו"),
+            defaultextension=".xlsx",
+            initialfile=f"fifo_report_{datetime.now():%Y%m%d_%H%M}.xlsx",
+            filetypes=[("חוברת אקסל", "*.xlsx")],
+        )
+        if not output:
+            return
 
         self.status.configure(text=ui_text("מחשב פיפו, מושך שער דולר ומייצא דוח..."))
         threading.Thread(
@@ -614,6 +716,7 @@ class CapitalGainsApp(BaseWindow):
             self._set_exchange_rate(result.exchange_rate)
         self._update_dashboard(result)
         self.status.configure(text=ui_text(f"הדוח נשמר: {path}"))
+        self._append_chat_entry("מערכת", "הניתוח הושלם. אפשר לשאול עכשיו שאלות על הדוח באזור השיחה.")
         extra = f"\nשער דולר: {result.exchange_rate.rate:.4f}" if result.exchange_rate else ""
         if exchange_error:
             extra += f"\nלא נטען שער דולר: {exchange_error}"
@@ -755,6 +858,138 @@ class CapitalGainsApp(BaseWindow):
                 fill=PALETTE["muted"],
                 font=(ASSISTANT_FONT_FAMILY, 9),
             )
+
+
+class MappingTemplateDialog(ctk.CTkToplevel):
+    FIELD_LABELS = [
+        ("trade_date", "תאריך עסקה"),
+        ("action", "פעולה"),
+        ("quantity", "כמות"),
+        ("price", "מחיר / שער"),
+        ("net_amount", "תמורה נטו"),
+        ("security_id", "מספר נייר"),
+        ("symbol", "סימול"),
+        ("security_name", "שם נייר"),
+        ("currency", "מטבע"),
+        ("commission", "עמלה"),
+        ("reference", "אסמכתא"),
+        ("bank_reported_gain_loss", "רווח/הפסד בנק"),
+    ]
+
+    def __init__(self, parent, preview: HeaderPreview) -> None:
+        super().__init__(parent)
+        self.preview = preview
+        self.saved = False
+        self.title(ui_title("התאמת עמודות"))
+        self.geometry("760x640")
+        self.transient(parent)
+        self.grab_set()
+        self.configure(fg_color=PALETTE["bg"])
+        self.vars: dict[str, tk.StringVar] = {}
+
+        ctk.CTkLabel(
+            self,
+            text=ui_text(f"הגדירי התאמת עמודות עבור {preview.source_file} / {preview.sheet}"),
+            font=ui_font(18, "bold"),
+            text_color=PALETTE["text"],
+            anchor="e",
+        ).pack(fill="x", padx=18, pady=(18, 8))
+
+        ctk.CTkLabel(
+            self,
+            text=ui_text(f"שורת הכותרות שזוהתה: {preview.header_row_index}"),
+            font=ui_font(12),
+            text_color=PALETTE["muted"],
+            anchor="e",
+        ).pack(fill="x", padx=18, pady=(0, 10))
+
+        preview_box = ctk.CTkTextbox(self, height=96, fg_color="#0D1013", text_color=PALETTE["text"], font=ui_font(12))
+        preview_box.pack(fill="x", padx=18, pady=(0, 10))
+        preview_box.insert("1.0", ui_text("כותרות שזוהו:\n" + " | ".join(preview.headers)))
+        if preview.sample_rows:
+            preview_box.insert("end", ui_text("\n\nדוגמאות:\n"))
+            for row in preview.sample_rows:
+                preview_box.insert("end", ui_text(" | ".join(row) + "\n"))
+        preview_box.configure(state="disabled")
+
+        scroll = ctk.CTkScrollableFrame(self, fg_color=PALETTE["panel"], corner_radius=8)
+        scroll.pack(fill="both", expand=True, padx=18, pady=(0, 10))
+        scroll.grid_columnconfigure(1, weight=1)
+        options = [""] + preview.headers
+        for row_index, (field_name, label) in enumerate(self.FIELD_LABELS):
+            ctk.CTkLabel(
+                scroll,
+                text=ui_text(label),
+                font=ui_font(13),
+                text_color=PALETTE["text"],
+                anchor="e",
+            ).grid(row=row_index, column=0, padx=10, pady=6, sticky="e")
+            variable = tk.StringVar()
+            combo = ttk.Combobox(scroll, textvariable=variable, values=options, state="readonly", justify="right")
+            combo.grid(row=row_index, column=1, padx=10, pady=6, sticky="ew")
+            self.vars[field_name] = variable
+
+        buttons = ctk.CTkFrame(self, fg_color=PALETTE["panel"])
+        buttons.pack(fill="x", padx=18, pady=(0, 18))
+        ctk.CTkButton(
+            buttons,
+            text=ui_text("שמור תבנית"),
+            font=ui_font(14, "bold"),
+            command=self._save,
+            fg_color=PALETTE["primary"],
+            hover_color=PALETTE["primary_hover"],
+            text_color=PALETTE["button_text"],
+        ).pack(side="right", padx=8, pady=8)
+        ctk.CTkButton(
+            buttons,
+            text=ui_text("ביטול"),
+            font=ui_font(14, "bold"),
+            command=self.destroy,
+            fg_color=PALETTE["secondary"],
+            hover_color=PALETTE["secondary_hover"],
+            text_color="white",
+        ).pack(side="right", padx=8, pady=8)
+
+        self._prefill_suggestions()
+
+    def _prefill_suggestions(self) -> None:
+        lookup = {_normalize_header_text(header): header for header in self.preview.headers}
+        for field_name, aliases in {
+            "trade_date": ("trade date", "execution date", "תאריך", "תאריך ביצוע", "תאריך עסקה"),
+            "action": ("action", "transaction", "פעולה", "סוג פעולה"),
+            "quantity": ("quantity", "qty", "כמות", "units"),
+            "price": ("price", "trade price", "שער", "מחיר"),
+            "net_amount": ("net amount", "תמורה נטו", "תמורה", "amount"),
+            "security_id": ("security id", "מספר נייר", "מספר בורסה", "isin"),
+            "symbol": ("symbol", "ticker", "סימול", "security"),
+            "security_name": ("security name", "description", "שם נייר", 'שם ני"ע'),
+            "currency": ("currency", "מטבע"),
+            "commission": ("commission", "עמלות", "עמלה"),
+            "reference": ("reference", "אסמכתא"),
+            "bank_reported_gain_loss": ("gain/loss", "רווח/הפסד"),
+        }.items():
+            for alias in aliases:
+                header = lookup.get(_normalize_header_text(alias))
+                if header:
+                    self.vars[field_name].set(header)
+                    break
+
+    def _save(self) -> None:
+        field_map = {field_name: variable.get().strip() for field_name, variable in self.vars.items() if variable.get().strip()}
+        if not all(field in field_map for field in ("trade_date", "action", "quantity")):
+            messagebox.showwarning(ui_title("חסר מיפוי"), ui_text("חייבים למפות לפחות תאריך, פעולה וכמות."))
+            return
+        if not any(field in field_map for field in ("price", "net_amount")):
+            messagebox.showwarning(ui_title("חסר מיפוי"), ui_text("צריך למפות מחיר/שער או תמורה נטו."))
+            return
+        if not any(field in field_map for field in ("security_id", "symbol", "security_name")):
+            messagebox.showwarning(ui_title("חסר מיפוי"), ui_text("צריך למפות לפחות מזהה נייר אחד."))
+            return
+
+        template_name = f"{self.preview.source_file} - {self.preview.sheet}"
+        save_generic_report_template(template_name, field_map)
+        self.saved = True
+        self.destroy()
 
 
 class IssuesDialog(ctk.CTkToplevel):

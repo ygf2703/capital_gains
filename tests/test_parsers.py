@@ -59,6 +59,25 @@ class ParserHeaderTests(unittest.TestCase):
         self.assertAlmostEqual(transactions[0].price, 120.5)
         self.assertFalse([issue for issue in issues if issue.severity == "error"])
 
+    def test_parses_generic_report_via_flexible_header_matching(self) -> None:
+        with TemporaryDirectory() as tmp:
+            workbook_path = Path(tmp) / "generic_report.xlsx"
+            workbook = Workbook()
+            sheet = workbook.active
+            sheet.title = "Report"
+            sheet.append(["Cover", "", "", "", "", ""])
+            sheet.append(["Trade Date", "Transaction Type", "Ticker", "Units", "Unit Price", "Amount"])
+            sheet.append(["2024-03-01", "Buy", "MSFT", 3, 200.0, -600.0])
+            workbook.save(workbook_path)
+
+            transactions, issues = parse_workbook(workbook_path)
+
+        self.assertEqual(len(transactions), 1)
+        self.assertEqual(transactions[0].broker, "Generic")
+        self.assertEqual(transactions[0].symbol, "MSFT")
+        self.assertAlmostEqual(transactions[0].price, 200.0)
+        self.assertFalse([issue for issue in issues if issue.severity == "error"])
+
 
 if __name__ == "__main__":
     unittest.main()

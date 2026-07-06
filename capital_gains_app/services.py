@@ -8,7 +8,9 @@ from .exchange_rates import fetch_usd_ils_rate_one_month_back, parse_user_date
 from .exporter import export_result
 from .fifo import calculate_fifo
 from .models import CalculationResult, Transaction, ValidationIssue
-from .parsers import parse_workbooks
+from .parsers import HeaderPreview, inspect_workbook_headers, parse_workbooks
+from .qa import answer_report_question
+from .report_templates import build_report_template, save_report_template
 
 
 @dataclass(slots=True)
@@ -45,3 +47,18 @@ def build_output_path(output: str = "") -> Path:
 
 def export_analysis(result: CalculationResult, output: str = "") -> Path:
     return export_result(result, build_output_path(output))
+
+
+def preview_report_headers(paths: list[str | Path]) -> list[HeaderPreview]:
+    previews: list[HeaderPreview] = []
+    for path_like in paths:
+        previews.extend(inspect_workbook_headers(Path(path_like)))
+    return previews
+
+
+def save_generic_report_template(name: str, field_map: dict[str, str]) -> None:
+    save_report_template(build_report_template(name=name, field_map=field_map, broker="generic"))
+
+
+def answer_question(result: CalculationResult | None, question: str) -> str:
+    return answer_report_question(result, question)
