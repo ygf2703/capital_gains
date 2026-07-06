@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import random
-import shutil
 import threading
 import tkinter as tk
 from datetime import date, datetime
@@ -268,6 +267,206 @@ def _ask_dialog(
         confirm_text=confirm_text,
         cancel_text=cancel_text,
     ).show()
+
+
+class GoogleSetupDialog(ctk.CTkToplevel):
+    def __init__(self, parent: "LoginDialog") -> None:
+        super().__init__(parent)
+        self.parent_dialog = parent
+        self.title(ui_title("הגדרת Google"))
+        self.geometry("560x420")
+        self.minsize(520, 380)
+        self.transient(parent)
+        self.grab_set()
+        self.configure(fg_color=PALETTE["bg"])
+        self.ready = False
+        self.proceed = False
+
+        shell = ctk.CTkFrame(
+            self,
+            fg_color=PALETTE["panel"],
+            corner_radius=14,
+            border_width=1,
+            border_color=PALETTE["line"],
+        )
+        shell.pack(fill="both", expand=True, padx=18, pady=18)
+
+        ctk.CTkLabel(
+            shell,
+            text=ui_text("חיבור Google לאפליקציה"),
+            font=ui_font(20, "bold"),
+            text_color=PALETTE["text"],
+            anchor="e",
+        ).pack(fill="x", padx=18, pady=(18, 6))
+
+        ctk.CTkLabel(
+            shell,
+            text=ui_text("העלה קובץ OAuth מסוג Desktop App, ואבדוק שהוא תקין לפני החיבור."),
+            font=ui_font(12),
+            text_color=PALETTE["muted"],
+            anchor="e",
+            justify="right",
+        ).pack(fill="x", padx=18, pady=(0, 12))
+
+        self.status_badge = ctk.CTkLabel(
+            shell,
+            text="",
+            font=ui_font(12, "bold"),
+            corner_radius=14,
+            fg_color=PALETTE["panel_glass"],
+            text_color=PALETTE["text"],
+            height=28,
+            anchor="center",
+        )
+        self.status_badge.pack(anchor="e", padx=18, pady=(0, 10))
+
+        self.message_box = ctk.CTkTextbox(
+            shell,
+            height=120,
+            fg_color=PALETTE["panel_alt"],
+            text_color=PALETTE["text"],
+            border_width=0,
+            wrap="word",
+            font=ui_font(12),
+            activate_scrollbars=False,
+        )
+        self.message_box.pack(fill="x", padx=18, pady=(0, 10))
+        self.message_box.configure(state="disabled")
+
+        self.path_label = ctk.CTkLabel(
+            shell,
+            text="",
+            font=ui_font(11),
+            text_color=PALETTE["muted"],
+            anchor="e",
+            justify="right",
+            wraplength=480,
+        )
+        self.path_label.pack(fill="x", padx=18, pady=(0, 14))
+
+        ctk.CTkLabel(
+            shell,
+            text=ui_text("המערכת שומרת את הקובץ במיקום האפליקציה, כדי שלא תצטרך להגדיר אותו שוב בכל פתיחה."),
+            font=ui_font(11),
+            text_color=PALETTE["muted"],
+            anchor="e",
+            justify="right",
+            wraplength=480,
+        ).pack(fill="x", padx=18, pady=(0, 18))
+
+        buttons = ctk.CTkFrame(shell, fg_color="transparent")
+        buttons.pack(fill="x", padx=18, pady=(0, 18))
+
+        self.pick_button = ctk.CTkButton(
+            buttons,
+            text=ui_text("בחר קובץ Google"),
+            font=ui_font(13, "bold"),
+            command=self._pick_file,
+            fg_color=PALETTE["primary"],
+            hover_color=PALETTE["primary_hover"],
+            text_color=PALETTE["button_text"],
+            border_width=1,
+            border_color=PALETTE["primary_border"],
+            width=138,
+        )
+        self.pick_button.pack(side="right")
+
+        self.continue_button = ctk.CTkButton(
+            buttons,
+            text=ui_text("המשך להתחברות"),
+            font=ui_font(13, "bold"),
+            command=self._finish,
+            fg_color=PALETTE["secondary"],
+            hover_color=PALETTE["secondary_hover"],
+            text_color=PALETTE["text"],
+            border_width=1,
+            border_color=PALETTE["secondary_border"],
+            width=138,
+        )
+        self.continue_button.pack(side="right", padx=(0, 10))
+
+        ctk.CTkButton(
+            buttons,
+            text=ui_text("סגור"),
+            font=ui_font(13, "bold"),
+            command=self.destroy,
+            fg_color=PALETTE["secondary"],
+            hover_color=PALETTE["secondary_hover"],
+            text_color=PALETTE["text"],
+            border_width=1,
+            border_color=PALETTE["secondary_border"],
+            width=96,
+        ).pack(side="left")
+
+        self._refresh_status()
+
+    def _refresh_status(self) -> None:
+        status = self.parent_dialog.parent.auth_service.inspect_google_configuration()
+        if status.configured:
+            self.status_badge.configure(
+                text=ui_text("מוכן לחיבור"),
+                fg_color=PALETTE["card_blue"],
+                text_color=PALETTE["positive"],
+            )
+            message = "קובץ Google תקין וזמין. אפשר להמשיך ישירות להתחברות."
+            if status.source == "env":
+                message += "\n\nהקובץ נטען ממשתנה סביבה, ולכן לא נדרש עותק נוסף באפליקציה."
+            elif status.source == "app":
+                message += "\n\nהקובץ נשמר בתיקיית config של האפליקציה."
+            self.ready = True
+        else:
+            self.status_badge.configure(
+                text=ui_text("נדרשת הגדרה"),
+                fg_color=PALETTE["card_yellow"],
+                text_color=PALETTE["warning"],
+            )
+            message = (
+                "כדי להפעיל התחברות עם Google צריך קובץ OAuth מסוג Desktop App.\n"
+                "אם כבר הורדת אותו מ-Google Cloud Console, אפשר לבחור אותו עכשיו."
+            )
+            if status.message:
+                message += f"\n\nפירוט:\n{status.message}"
+            self.ready = False
+
+        self.message_box.configure(state="normal")
+        self.message_box.delete("1.0", tk.END)
+        self.message_box.insert("1.0", ui_text(message))
+        self.message_box.configure(state="disabled")
+
+        location_text = ""
+        if status.path:
+            label = "מיקום פעיל" if status.configured else "מיקום יעד"
+            location_text = f"{label}: {status.path}"
+        self.path_label.configure(text=ui_text(location_text))
+        self.continue_button.configure(state="normal" if self.ready else "disabled")
+
+    def _pick_file(self) -> None:
+        selected = filedialog.askopenfilename(
+            parent=self,
+            title=ui_title("בחר קובץ Google Client Secret"),
+            filetypes=[("JSON", "*.json"), ("All files", "*.*")],
+        )
+        if not selected:
+            return
+
+        try:
+            self.parent_dialog.parent.auth_service.install_google_configuration(Path(selected))
+        except AuthConfigurationError as exc:
+            _show_dialog(self, "קובץ לא תקין", str(exc), kind="error")
+            return
+        except OSError as exc:
+            _show_dialog(self, "שמירת הקובץ נכשלה", str(exc), kind="error")
+            return
+
+        self._refresh_status()
+        self.parent_dialog._refresh_google_option()
+        self.parent_dialog._set_status("חיבור Google הוגדר. אפשר להמשיך להתחברות.", PALETTE["positive"])
+
+    def _finish(self) -> None:
+        if not self.ready:
+            return
+        self.proceed = True
+        self.destroy()
 
 
 class CapitalGainsApp(BaseWindow):
@@ -1450,13 +1649,19 @@ class LoginDialog(ctk.CTkToplevel):
         if self.google_button is None or self.status_label is None:
             return
 
-        if self.parent.auth_service.has_google_configuration():
+        status = self.parent.auth_service.inspect_google_configuration()
+        if status.configured:
             self.google_button.configure(text=ui_text("כניסה עם Google"), state="normal")
-            self.status_label.configure(text=ui_text("אפשר להתחבר עם אימייל וסיסמה, או להמשיך עם Google."))
+            source_label = {
+                "env": "הגדרה חיצונית",
+                "app": "הגדרה מקומית באפליקציה",
+                "local": "הגדרה בתיקיית המשתמש",
+            }.get(status.source, "הגדרה זמינה")
+            self.status_label.configure(text=ui_text(f"אפשר להתחבר עם אימייל וסיסמה, או להמשיך עם Google. {source_label}."))
             return
 
         self.google_button.configure(text=ui_text("הגדר התחברות עם Google"), state="normal")
-        self.status_label.configure(text=ui_text("כדי להפעיל חיבור Google צריך לבחור קובץ google_client_secret.json."))
+        self.status_label.configure(text=ui_text(status.message or "כדי להפעיל חיבור Google צריך לבחור קובץ google_client_secret.json."))
 
     def _handle_google_button(self) -> None:
         if self.parent.auth_service.has_google_configuration():
@@ -1465,33 +1670,11 @@ class LoginDialog(ctk.CTkToplevel):
         self._configure_google_sign_in()
 
     def _configure_google_sign_in(self) -> None:
-        message = f"{self.parent.auth_service.google_configuration_message()}\n\nלבחור עכשיו את קובץ ההגדרה?"
-        if not _ask_dialog(self, "הגדרת Google", message, kind="question", confirm_text="בחר קובץ", cancel_text="אחר כך"):
-            self._set_status("חיבור Google עדיין לא הוגדר.", PALETTE["muted"])
-            return
-
-        selected = filedialog.askopenfilename(
-            parent=self,
-            title=ui_title("בחר קובץ Google Client Secret"),
-            filetypes=[("JSON", "*.json"), ("All files", "*.*")],
-        )
-        if not selected:
-            self._set_status("לא נבחר קובץ Google.", PALETTE["muted"])
-            return
-
-        source_path = Path(selected)
-        target_path = app_root() / "config" / "google_client_secret.json"
-
-        try:
-            target_path.parent.mkdir(parents=True, exist_ok=True)
-            if source_path.resolve() != target_path.resolve():
-                shutil.copy2(source_path, target_path)
-        except OSError as exc:
-            self._set_status(f"לא הצלחתי לשמור את קובץ Google: {exc}", PALETTE["warning"])
-            return
-
+        dialog = GoogleSetupDialog(self)
+        self.wait_window(dialog)
         self._refresh_google_option()
-        self._set_status("חיבור Google הוגדר. אפשר להמשיך עם Google.", PALETTE["positive"])
+        if dialog.proceed:
+            self._sign_in_with_google()
 
     def _sign_in_with_google(self) -> None:
         if self.google_button is not None:

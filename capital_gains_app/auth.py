@@ -6,6 +6,7 @@ import hmac
 import json
 import os
 import secrets
+import shutil
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -69,6 +70,14 @@ class LocalUserAccount:
     password_hash: str
     password_salt: str
     created_at: str
+
+
+@dataclass(frozen=True, slots=True)
+class GoogleConfigurationStatus:
+    configured: bool
+    path: str = ""
+    source: str = ""
+    message: str = ""
 
 
 def default_users_path() -> Path:
@@ -248,18 +257,18 @@ class GoogleAuthService:
         return AuthSession()
 
     def has_client_configuration(self) -> bool:
-        return self.locate_client_secret() is not None
+        return self.inspect_client_configuration().configured
 
     def locate_client_secret(self) -> Path | None:
-        if self._client_secret_path:
-            return self._client_secret_path if self._client_secret_path.exists() else None
-        for path in self.client_secret_candidates():
-            if path.exists():
-                return path
+        status = self.inspect_client_configuration()
+        if status.configured and status.path:
+            return Path(status.path)
         return None
 
     def client_secret_candidates(self) -> tuple[Path, ...]:
         candidates: list[Path] = []
+        if self._client_secret_path:
+            candidates.append(self._client_secret_path.expanduser())
         configured = os.environ.get(GOOGLE_CLIENT_SECRET_ENV, "").strip()
         if configured:
             candidates.append(Path(configured).expanduser())
@@ -275,6 +284,72 @@ class GoogleAuthService:
                 unique.append(path)
         return tuple(unique)
 
+    def preferred_client_secret_path(self) -> Path:
+        return app_root() / "config" / "google_client_secret.json"
+
+    def inspect_client_configuration(self) -> GoogleConfigurationStatus:
+        first_invalid: GoogleConfigurationStatus | None = None
+        for path in self.client_secret_candidates():
+            if not path.exists():
+                continue
+            try:
+                self.validate_client_secret_file(path)
+            except AuthConfigurationError as exc:
+                if first_invalid is None:
+                    first_invalid = GoogleConfigurationStatus(
+                        configured=False,
+                        path=str(path),
+                        source=self._configuration_source_label(path),
+                        message=str(exc),
+                    )
+                continue
+            return GoogleConfigurationStatus(
+                configured=True,
+                path=str(path),
+                source=self._configuration_source_label(path),
+                message="חיבור Google מוכן לשימוש.",
+            )
+        if first_invalid is not None:
+            return first_invalid
+        return GoogleConfigurationStatus(
+            configured=False,
+            path=str(self.preferred_client_secret_path()),
+            source="missing",
+            message="לא נמצא עדיין קובץ Google Client Secret תקין.",
+        )
+
+    def validate_client_secret_file(self, path: Path) -> dict[str, object]:
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except FileNotFoundError as exc:
+            raise AuthConfigurationError("קובץ ההגדרה של Google לא נמצא.") from exc
+        except OSError as exc:
+            raise AuthConfigurationError(f"לא הצלחתי לקרוא את קובץ ההגדרה של Google: {exc}") from exc
+        except json.JSONDecodeError as exc:
+            raise AuthConfigurationError(f"קובץ Google אינו JSON תקין: {exc}") from exc
+
+        if not isinstance(payload, dict):
+            raise AuthConfigurationError("קובץ Google חייב להכיל אובייקט JSON תקין.")
+
+        client_config = payload.get("installed") or payload.get("web")
+        if not isinstance(client_config, dict):
+            raise AuthConfigurationError("קובץ Google חייב לכלול בלוק 'installed' או 'web'.")
+
+        required_fields = ("client_id", "client_secret", "auth_uri", "token_uri")
+        missing_fields = [field for field in required_fields if not str(client_config.get(field, "")).strip()]
+        if missing_fields:
+            raise AuthConfigurationError(f"קובץ Google חסר שדות חובה: {', '.join(missing_fields)}.")
+
+        return payload
+
+    def install_client_secret(self, source_path: Path) -> Path:
+        self.validate_client_secret_file(source_path)
+        target_path = self.preferred_client_secret_path()
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        if source_path.resolve() != target_path.resolve():
+            shutil.copy2(source_path, target_path)
+        return target_path
+
     def configuration_message(self) -> str:
         candidates = "\n".join(f"- {path}" for path in self.client_secret_candidates())
         return (
@@ -288,6 +363,7 @@ class GoogleAuthService:
         client_secret = self.locate_client_secret()
         if client_secret is None:
             raise AuthConfigurationError(self.configuration_message())
+        self.validate_client_secret_file(client_secret)
 
         InstalledAppFlow = self._load_installed_app_flow()
 
@@ -429,6 +505,16 @@ class GoogleAuthService:
         self.profile_path.parent.mkdir(parents=True, exist_ok=True)
         self.token_path.parent.mkdir(parents=True, exist_ok=True)
 
+    def _configuration_source_label(self, path: Path) -> str:
+        configured = os.environ.get(GOOGLE_CLIENT_SECRET_ENV, "").strip()
+        if configured and Path(configured).expanduser() == path:
+            return "env"
+        if path == self.preferred_client_secret_path():
+            return "app"
+        if path == self.profile_path.with_name("google_client_secret.json"):
+            return "local"
+        return "custom"
+
     @staticmethod
     def _load_installed_app_flow():
         try:
@@ -482,6 +568,12 @@ class AuthService:
 
     def google_configuration_message(self) -> str:
         return self.google.configuration_message()
+
+    def inspect_google_configuration(self) -> GoogleConfigurationStatus:
+        return self.google.inspect_client_configuration()
+
+    def install_google_configuration(self, source_path: Path) -> Path:
+        return self.google.install_client_secret(source_path)
 
     def sign_in_with_google(self) -> AuthSession:
         return self.google.sign_in()
