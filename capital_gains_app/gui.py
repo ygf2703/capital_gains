@@ -9,6 +9,7 @@ from tkinter import filedialog, messagebox, ttk
 
 import customtkinter as ctk
 
+from .auth import AuthConfigurationError, AuthSession, GoogleAuthError, GoogleAuthService
 from .dashboard import build_dashboard_summary
 from .exchange_rates import fetch_usd_ils_rate_one_month_back, parse_user_date
 from .exporter import export_result
@@ -125,10 +126,16 @@ class CapitalGainsApp(BaseWindow):
         self.files: list[Path] = []
         self.last_result: CalculationResult | None = None
         self.last_exchange_rate: ExchangeRateSnapshot | None = None
-        self.user_identity: UserIdentity = load_user_identity()
+        self.auth_service = GoogleAuthService()
+        self.auth_session: AuthSession = self.auth_service.load_session()
+        self.user_identity: UserIdentity = self.auth_session.identity if self.auth_session.email else load_user_identity()
         self.exchange_date_var = tk.StringVar(value=date.today().isoformat())
         self.kpi_labels: dict[str, ctk.CTkLabel] = {}
         self.insight_labels: list[ctk.CTkLabel] = []
+        self.greeting_label: ctk.CTkLabel | None = None
+        self.profile_label: ctk.CTkLabel | None = None
+        self.auth_hint_label: ctk.CTkLabel | None = None
+        self.auth_button: ctk.CTkButton | None = None
 
         self._build_ui()
 
@@ -139,13 +146,14 @@ class CapitalGainsApp(BaseWindow):
         header = ctk.CTkFrame(self, corner_radius=0, fg_color=PALETTE["panel_alt"])
         header.grid(row=0, column=0, sticky="ew")
         header.grid_columnconfigure(0, weight=1)
-        ctk.CTkLabel(
+        self.greeting_label = ctk.CTkLabel(
             header,
             text=ui_text(greeting_for_user(self.user_identity)),
             font=ui_font(28, "bold"),
             text_color=PALETTE["text"],
             anchor="e",
-        ).grid(row=0, column=0, padx=28, pady=(20, 4), sticky="ew")
+        )
+        self.greeting_label.grid(row=0, column=0, padx=28, pady=(20, 4), sticky="ew")
         ctk.CTkLabel(
             header,
             text=ui_text("מחשבון פיפו מקומי לדוחות אגיס ולאומי, עם דשבורד וייצוא אקסל"),
@@ -153,6 +161,33 @@ class CapitalGainsApp(BaseWindow):
             text_color=PALETTE["muted"],
             anchor="e",
         ).grid(row=1, column=0, padx=28, pady=(0, 18), sticky="ew")
+
+        auth_frame = ctk.CTkFrame(header, corner_radius=8, fg_color=PALETTE["panel_glass"], border_width=1, border_color=PALETTE["line"])
+        auth_frame.grid(row=0, column=1, rowspan=2, padx=(0, 28), pady=18, sticky="e")
+        auth_frame.grid_columnconfigure(0, weight=1)
+
+        self.profile_label = ctk.CTkLabel(
+            auth_frame,
+            text="",
+            font=ui_font(13, "bold"),
+            text_color=PALETTE["text"],
+            anchor="e",
+        )
+        self.profile_label.grid(row=0, column=0, padx=14, pady=(10, 2), sticky="ew")
+
+        self.auth_hint_label = ctk.CTkLabel(
+            auth_frame,
+            text="",
+            font=ui_font(11),
+            text_color=PALETTE["muted"],
+            anchor="e",
+            justify="right",
+            wraplength=260,
+        )
+        self.auth_hint_label.grid(row=1, column=0, padx=14, pady=(0, 10), sticky="ew")
+
+        self.auth_button = self._button(auth_frame, "התחברי עם Google", self.toggle_google_auth, width=164)
+        self.auth_button.grid(row=2, column=0, padx=14, pady=(0, 12), sticky="e")
 
         toolbar = ctk.CTkFrame(self, corner_radius=8, fg_color=PALETTE["panel_glass"], border_width=1, border_color=PALETTE["line"])
         toolbar.grid(row=1, column=0, padx=18, pady=14, sticky="ew")
@@ -210,6 +245,7 @@ class CapitalGainsApp(BaseWindow):
         )
         self.status.grid(row=0, column=0, padx=14, pady=10, sticky="ew")
 
+        self._refresh_identity_ui()
         self.after(200, self._draw_empty_dashboard)
 
     def _build_file_panel(self, parent: ctk.CTkFrame) -> None:
@@ -380,6 +416,68 @@ class CapitalGainsApp(BaseWindow):
             border_width=1,
             border_color="#EDF1F3" if not is_secondary else PALETTE["line"],
         )
+
+    def _refresh_identity_ui(self) -> None:
+        if self.greeting_label is not None:
+            self.greeting_label.configure(text=ui_text(greeting_for_user(self.user_identity)))
+
+        if self.profile_label is None or self.auth_hint_label is None or self.auth_button is None:
+            return
+
+        if self.auth_session.connected and self.auth_session.email:
+            profile_text = self.auth_session.email
+            hint_text = "הזדהות עם Google פעילה. הקבצים והניתוחים נשארים מקומיים על המחשב."
+            button_text = "התנתקי מ-Google"
+        elif self.auth_service.has_client_configuration():
+            profile_text = "Google Sign-In מוכן"
+            hint_text = "אפשר להתחבר כדי לזהות את המשתמש. שם הברכה ייגזר מהאימייל."
+            button_text = "התחברי עם Google"
+        else:
+            profile_text = "Google Sign-In לא הוגדר"
+            hint_text = "חסר קובץ google_client_secret.json בתיקיית config או ב-LOCALAPPDATA."
+            button_text = "הגדירי Google"
+
+        self.profile_label.configure(text=ui_text(profile_text))
+        self.auth_hint_label.configure(text=ui_text(hint_text))
+        self.auth_button.configure(text=ui_text(button_text), state="normal")
+
+    def toggle_google_auth(self) -> None:
+        if self.auth_session.connected and self.auth_session.email:
+            self.auth_service.sign_out()
+            self.auth_session = AuthSession()
+            self.user_identity = load_user_identity()
+            self.status.configure(text=ui_text("ההתנתקות מ-Google הושלמה"))
+            self._refresh_identity_ui()
+            return
+
+        self._start_google_sign_in()
+
+    def _start_google_sign_in(self) -> None:
+        if self.auth_button is not None:
+            self.auth_button.configure(state="disabled")
+        if self.auth_hint_label is not None:
+            self.auth_hint_label.configure(text=ui_text("פותח דפדפן להתחברות מאובטחת עם Google..."))
+        self.status.configure(text=ui_text("מתחבר ל-Google"))
+        threading.Thread(target=self._google_sign_in_worker, daemon=True).start()
+
+    def _google_sign_in_worker(self) -> None:
+        try:
+            session = self.auth_service.sign_in()
+        except (AuthConfigurationError, GoogleAuthError) as exc:
+            self.after(0, lambda: self._handle_google_sign_in_error(str(exc)))
+            return
+        self.after(0, lambda: self._apply_auth_session(session))
+
+    def _handle_google_sign_in_error(self, message: str) -> None:
+        messagebox.showwarning(ui_title("Google Sign-In"), ui_text(message))
+        self.status.configure(text=ui_text("התחברות Google לא הושלמה"))
+        self._refresh_identity_ui()
+
+    def _apply_auth_session(self, session: AuthSession) -> None:
+        self.auth_session = session
+        self.user_identity = session.identity if session.email else load_user_identity()
+        self.status.configure(text=ui_text("התחברות Google הושלמה"))
+        self._refresh_identity_ui()
 
     def add_files(self) -> None:
         selected = filedialog.askopenfilenames(

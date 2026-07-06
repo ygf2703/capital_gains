@@ -16,7 +16,7 @@
 - יצוא דוח Excel עם גיליונות Dashboard, Summary, Realized FIFO, Open Positions, Transactions, Corporate Actions, Validation Issues.
 - GUI ב-CustomTkinter עם בחירת קבצים, Drag & Drop כאשר `tkinterdnd2` מותקן, וייצוא בלחיצה.
 - CLI לאימות חישוב בלי ממשק.
-- שכבת זהות משתמש ראשונית: הברכה במסך נלקחת מפרופיל/מייל, כהכנה ל-Google Sign-In.
+- שכבת Google Sign-In מקומית ל-Desktop: התחברות דרך הדפדפן, שמירת session מקומית, וברכה שנגזרת מהאימייל של המשתמש.
 - שכבת שירות משותפת ל-CLI ול-GUI, כהכנה להפרדת ליבת הניתוח מהממשק.
 
 ## התקנה מקומית
@@ -42,11 +42,29 @@ $env:CAPITAL_GAINS_USER_EMAIL="liat.cohen@gmail.com"
 .\.venv\Scripts\python.exe app.py
 ```
 
-בעת חיבור Google Sign-In, שם המשתמש יילקח קודם משם הפרופיל של Google, ואם הוא לא זמין ייגזר מהמייל.
+בעת חיבור Google Sign-In, שם התצוגה באפליקציה ייגזר מהאימייל של המשתמש.
+
+## Google Sign-In ל-Desktop
+
+1. צרי ב-Google Cloud OAuth Client מסוג `Desktop app`.
+2. שמרי את קובץ ה-JSON בשם `google_client_secret.json`.
+3. הניחי אותו באחד מהמיקומים הבאים:
+
+```text
+config\google_client_secret.json
+%LOCALAPPDATA%\CapitalGains\google_client_secret.json
+```
+
+אפשר גם להגדיר נתיב מותאם דרך משתנה הסביבה:
+
+```powershell
+$env:CAPITAL_GAINS_GOOGLE_CLIENT_SECRET="C:\path\to\google_client_secret.json"
+```
+
+האפליקציה שומרת את ה-session מקומית על המחשב ואינה מעלה את דוחות האקסל לענן.
 
 ## כיווני פיתוח קרובים
 
-- Google Sign-In לדסקטופ עם שמירת פרופיל מקומית, ללא העלאת דוחות לענן.
 - אזור `שאל/שאלי את הדוח` שיענה על שאלות מתוך הקובץ שנותח בלבד.
 - זיהוי דוחות גנרי לפי כותרות עמודות, כולל מסך התאמת עמודות ושמירת תבניות.
 - הפרדת ליבת הניתוח מהממשק כדי לאפשר Microsoft Store ו-Android בהמשך.

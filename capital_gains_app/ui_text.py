@@ -10,7 +10,8 @@ import customtkinter as ctk
 ASSISTANT_FONT_FAMILY = "Assistant"
 _FR_PRIVATE = 0x10
 _FR_NOT_ENUM = 0x20
-_TRAILING_RTL_PUNCTUATION = ".:;!?"
+_RTL_EMBED = "\u202B"
+_RTL_POP = "\u202C"
 
 
 def app_root() -> Path:
@@ -53,8 +54,4 @@ def _has_hebrew(text: str) -> bool:
 
 
 def _prepare_rtl_line(line: str) -> str:
-    moved = ""
-    while line and line[-1] in _TRAILING_RTL_PUNCTUATION:
-        moved += line[-1]
-        line = line[:-1]
-    return f"{moved}{line}"
+    return f"{_RTL_EMBED}{line}{_RTL_POP}"

@@ -14,3 +14,4 @@ dist/
 outputs/*.xlsx
 outputs/*.json
 !outputs/.gitkeep
+config/google_client_secret.json
