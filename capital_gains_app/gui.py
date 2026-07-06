@@ -6,7 +6,7 @@ import threading
 import tkinter as tk
 from datetime import date, datetime
 from pathlib import Path
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, ttk
 
 import customtkinter as ctk
 
@@ -120,6 +120,154 @@ class GraniteBackground(tk.Canvas):
             x0 = width - 60 - index * 44
             h = 34 + index * 17
             self.create_rectangle(x0, height - 42 - h, x0 + 16, height - 42, fill="#E5DCCB", outline="")
+
+
+class BrandedDialog(ctk.CTkToplevel):
+    ICONS = {
+        "info": ("i", "positive"),
+        "success": ("✓", "positive"),
+        "warning": ("!", "warning"),
+        "error": ("×", "negative"),
+        "question": ("?", "primary"),
+    }
+
+    def __init__(
+        self,
+        parent,
+        title: str,
+        message: str,
+        *,
+        kind: str = "info",
+        confirm_text: str = "אישור",
+        cancel_text: str | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self.result = False
+        self.kind = kind if kind in self.ICONS else "info"
+        self.title(ui_title(title))
+        self.geometry("460x260")
+        self.minsize(420, 240)
+        self.transient(parent)
+        self.grab_set()
+        self.configure(fg_color=PALETTE["bg"])
+        self.protocol("WM_DELETE_WINDOW", self._cancel)
+
+        symbol, color_key = self.ICONS[self.kind]
+
+        shell = ctk.CTkFrame(
+            self,
+            fg_color=PALETTE["panel"],
+            corner_radius=14,
+            border_width=1,
+            border_color=PALETTE["line"],
+        )
+        shell.pack(fill="both", expand=True, padx=18, pady=18)
+        shell.grid_columnconfigure(1, weight=1)
+        shell.grid_rowconfigure(1, weight=1)
+
+        icon = ctk.CTkLabel(
+            shell,
+            text=symbol,
+            width=44,
+            height=44,
+            corner_radius=22,
+            fg_color=PALETTE["panel_glass"],
+            text_color=PALETTE[color_key],
+            font=ui_font(24, "bold"),
+        )
+        icon.grid(row=0, column=0, rowspan=2, padx=(18, 12), pady=(18, 10), sticky="n")
+
+        ctk.CTkLabel(
+            shell,
+            text=ui_text(title),
+            font=ui_font(18, "bold"),
+            text_color=PALETTE["text"],
+            anchor="e",
+        ).grid(row=0, column=1, padx=(0, 18), pady=(18, 6), sticky="ew")
+
+        message_box = ctk.CTkTextbox(
+            shell,
+            fg_color=PALETTE["panel_alt"],
+            text_color=PALETTE["text"],
+            border_width=0,
+            wrap="word",
+            font=ui_font(12),
+            activate_scrollbars=False,
+        )
+        message_box.grid(row=1, column=1, padx=(0, 18), pady=(0, 12), sticky="nsew")
+        message_box.insert("1.0", ui_text(message))
+        message_box.configure(state="disabled")
+
+        buttons = ctk.CTkFrame(shell, fg_color="transparent")
+        buttons.grid(row=2, column=0, columnspan=2, padx=18, pady=(0, 18), sticky="ew")
+        buttons.grid_columnconfigure(0, weight=1)
+
+        if cancel_text:
+            ctk.CTkButton(
+                buttons,
+                text=ui_text(cancel_text),
+                font=ui_font(13, "bold"),
+                command=self._cancel,
+                fg_color=PALETTE["secondary"],
+                hover_color=PALETTE["secondary_hover"],
+                text_color=PALETTE["text"],
+                border_width=1,
+                border_color=PALETTE["secondary_border"],
+                width=110,
+            ).pack(side="left")
+
+        confirm_button = ctk.CTkButton(
+            buttons,
+            text=ui_text(confirm_text),
+            font=ui_font(13, "bold"),
+            command=self._confirm,
+            fg_color=PALETTE["primary"],
+            hover_color=PALETTE["primary_hover"],
+            text_color=PALETTE["button_text"],
+            border_width=1,
+            border_color=PALETTE["primary_border"],
+            width=126,
+        )
+        confirm_button.pack(side="right")
+        confirm_button.focus_set()
+
+        self.bind("<Return>", lambda _event: self._confirm())
+        self.bind("<Escape>", lambda _event: self._cancel())
+
+    def _confirm(self) -> None:
+        self.result = True
+        self.destroy()
+
+    def _cancel(self) -> None:
+        self.result = False
+        self.destroy()
+
+    def show(self) -> bool:
+        self.wait_window()
+        return self.result
+
+
+def _show_dialog(parent, title: str, message: str, kind: str = "info", confirm_text: str = "אישור") -> None:
+    BrandedDialog(parent, title, message, kind=kind, confirm_text=confirm_text).show()
+
+
+def _ask_dialog(
+    parent,
+    title: str,
+    message: str,
+    *,
+    kind: str = "question",
+    confirm_text: str = "אישור",
+    cancel_text: str = "ביטול",
+) -> bool:
+    return BrandedDialog(
+        parent,
+        title,
+        message,
+        kind=kind,
+        confirm_text=confirm_text,
+        cancel_text=cancel_text,
+    ).show()
 
 
 class CapitalGainsApp(BaseWindow):
@@ -719,11 +867,11 @@ class CapitalGainsApp(BaseWindow):
 
     def configure_columns(self) -> None:
         if not self.files:
-            messagebox.showwarning(ui_title("אין קבצים"), ui_text("בחר קודם קובץ אקסל אחד לפחות."))
+            _show_dialog(self, "אין קבצים", "בחר קודם קובץ אקסל אחד לפחות.", kind="warning")
             return
         previews = self.workflow.preview_current_headers()
         if not previews:
-            messagebox.showwarning(ui_title("לא נמצאו כותרות"), ui_text("לא הצלחתי למצוא שורת כותרות מתאימה בקבצים שנבחרו."))
+            _show_dialog(self, "לא נמצאו כותרות", "לא הצלחתי למצוא שורת כותרות מתאימה בקבצים שנבחרו.", kind="warning")
             return
         dialog = MappingTemplateDialog(self, previews[0])
         self.wait_window(dialog)
@@ -770,7 +918,7 @@ class CapitalGainsApp(BaseWindow):
         try:
             requested_date = parse_user_date(self.exchange_date_var.get())
         except ValueError as exc:
-            messagebox.showwarning(ui_title("תאריך לא תקין"), ui_text(str(exc)))
+            _show_dialog(self, "תאריך לא תקין", str(exc), kind="warning")
             return
         self.exchange_status.configure(text=ui_text("טוען שער יציג מבנק ישראל..."))
         self.status.configure(text=ui_text("טוען שער דולר מבנק ישראל"))
@@ -808,13 +956,13 @@ class CapitalGainsApp(BaseWindow):
 
     def calculate_and_export(self) -> None:
         if not self.files:
-            messagebox.showwarning(ui_title("אין קבצים"), ui_text("בחר לפחות קובץ אקסל אחד."))
+            _show_dialog(self, "אין קבצים", "בחר לפחות קובץ אקסל אחד.", kind="warning")
             return
         try:
             preparation = self.workflow.prepare_analysis(self.exchange_date_var.get())
             transactions, issues = preparation.transactions, preparation.issues
         except Exception as exc:
-            messagebox.showerror(ui_title("שגיאה בקריאת הקבצים"), ui_text(str(exc)))
+            _show_dialog(self, "שגיאה בקריאת הקבצים", str(exc), kind="error")
             self.status.configure(text=ui_text("שגיאה בקריאת הקבצים"))
             return
 
@@ -836,9 +984,11 @@ class CapitalGainsApp(BaseWindow):
                     self.status.configure(text=ui_text("נשמרה תבנית חדשה. מריץ שוב את הניתוח עם המיפוי המעודכן..."))
                     self.calculate_and_export()
                     return
-            messagebox.showwarning(
-                ui_title("כותרות לא מזוהות"),
-                ui_text("לא זוהתה שורת כותרות נתמכת. אפשר להשתמש ב'התאמת עמודות' כדי ללמד את המערכת את הדוח."),
+            _show_dialog(
+                self,
+                "כותרות לא מזוהות",
+                "לא זוהתה שורת כותרות נתמכת. אפשר להשתמש ב'התאמת עמודות' כדי ללמד את המערכת את הדוח.",
+                kind="warning",
             )
             self.status.configure(text=ui_text("נדרש מיפוי עמודות לדוח החדש"))
             return
@@ -859,7 +1009,7 @@ class CapitalGainsApp(BaseWindow):
             ]
             unresolved = [issue for issue in issues if issue.severity == "error"]
             if unresolved:
-                messagebox.showwarning(ui_title("נותרו שגיאות"), ui_text("לא כל שורות השגיאה תוקנו. החישוב נעצר."))
+                _show_dialog(self, "נותרו שגיאות", "לא כל שורות השגיאה תוקנו. החישוב נעצר.", kind="warning")
                 self.status.configure(text=ui_text("נותרו שגיאות לתיקון"))
                 return
 
@@ -891,7 +1041,7 @@ class CapitalGainsApp(BaseWindow):
             self.after(0, lambda: self._done(outcome))
         except Exception as exc:  # pragma: no cover - GUI boundary
             error = str(exc)
-            self.after(0, lambda: messagebox.showerror(ui_title("שגיאה"), ui_text(error)))
+            self.after(0, lambda: _show_dialog(self, "שגיאה", error, kind="error"))
             self.after(0, lambda: self.status.configure(text=ui_text("שגיאה בחישוב")))
 
     def _done(self, outcome: ExportOutcome) -> None:
@@ -908,9 +1058,12 @@ class CapitalGainsApp(BaseWindow):
         extra = f"\nשער דולר: {result.exchange_rate.rate:.4f}" if result.exchange_rate else ""
         if exchange_error:
             extra += f"\nלא נטען שער דולר: {exchange_error}"
-        messagebox.showinfo(
-            ui_title("הסתיים"),
-            ui_text(f"הדוח נוצר בהצלחה.\nשורות פיפו: {len(result.realized)}\nהתראות: {len(result.issues)}{extra}\n\n{path}"),
+        _show_dialog(
+            self,
+            "הסתיים",
+            f"הדוח נוצר בהצלחה.\nשורות פיפו: {len(result.realized)}\nהתראות: {len(result.issues)}{extra}\n\n{path}",
+            kind="success",
+            confirm_text="סגור",
         )
 
     def _update_dashboard(self, result: CalculationResult) -> None:
@@ -1313,7 +1466,7 @@ class LoginDialog(ctk.CTkToplevel):
 
     def _configure_google_sign_in(self) -> None:
         message = f"{self.parent.auth_service.google_configuration_message()}\n\nלבחור עכשיו את קובץ ההגדרה?"
-        if not messagebox.askyesno(ui_title("הגדרת Google"), ui_text(message), parent=self):
+        if not _ask_dialog(self, "הגדרת Google", message, kind="question", confirm_text="בחר קובץ", cancel_text="אחר כך"):
             self._set_status("חיבור Google עדיין לא הוגדר.", PALETTE["muted"])
             return
 
@@ -1363,7 +1516,7 @@ class LoginDialog(ctk.CTkToplevel):
         if self.parent.auth_session.connected:
             self.destroy()
             return
-        if messagebox.askyesno(ui_title("סגירת האפליקציה"), ui_text("בלי התחברות אי אפשר להמשיך. לסגור את האפליקציה?"), parent=self):
+        if _ask_dialog(self, "סגירת האפליקציה", "בלי התחברות אי אפשר להמשיך. לסגור את האפליקציה?", kind="question", confirm_text="סגור", cancel_text="חזור"):
             self.destroy()
             self.parent.destroy()
 
@@ -1485,13 +1638,13 @@ class MappingTemplateDialog(ctk.CTkToplevel):
     def _save(self) -> None:
         field_map = {field_name: variable.get().strip() for field_name, variable in self.vars.items() if variable.get().strip()}
         if not all(field in field_map for field in ("trade_date", "action", "quantity")):
-            messagebox.showwarning(ui_title("חסר מיפוי"), ui_text("חייבים למפות לפחות תאריך, פעולה וכמות."))
+            _show_dialog(self, "חסר מיפוי", "חייבים למפות לפחות תאריך, פעולה וכמות.", kind="warning")
             return
         if not any(field in field_map for field in ("price", "net_amount")):
-            messagebox.showwarning(ui_title("חסר מיפוי"), ui_text("צריך למפות מחיר/שער או תמורה נטו."))
+            _show_dialog(self, "חסר מיפוי", "צריך למפות מחיר/שער או תמורה נטו.", kind="warning")
             return
         if not any(field in field_map for field in ("security_id", "symbol", "security_name")):
-            messagebox.showwarning(ui_title("חסר מיפוי"), ui_text("צריך למפות לפחות מזהה נייר אחד."))
+            _show_dialog(self, "חסר מיפוי", "צריך למפות לפחות מזהה נייר אחד.", kind="warning")
             return
 
         template_name = f"{self.preview.source_file} - {self.preview.sheet}"
@@ -1722,11 +1875,11 @@ class CorrectionsDialog(ctk.CTkToplevel):
 
     def _save_current(self) -> None:
         if self.selected_issue is None:
-            messagebox.showwarning(ui_title("לא נבחרה שורה"), ui_text("בחר שורה לתיקון."))
+            _show_dialog(self, "לא נבחרה שורה", "בחר שורה לתיקון.", kind="warning")
             return
         value = self.value_entry.get().strip()
         if not value:
-            messagebox.showwarning(ui_title("ערך חסר"), ui_text("הזן ערך חדש."))
+            _show_dialog(self, "ערך חסר", "הזן ערך חדש.", kind="warning")
             return
         issue = self.selected_issue
         key = (issue.source_file, issue.sheet, issue.row_number, issue.field)
@@ -1741,7 +1894,14 @@ class CorrectionsDialog(ctk.CTkToplevel):
 
     def _confirm(self) -> None:
         missing = len(self.issues) - len(self.corrections)
-        if missing and not messagebox.askyesno(ui_title("לא כל השורות תוקנו"), ui_text(f"נותרו {missing} שורות ללא תיקון. להמשיך?")):
+        if missing and not _ask_dialog(
+            self,
+            "לא כל השורות תוקנו",
+            f"נותרו {missing} שורות ללא תיקון. להמשיך?",
+            kind="question",
+            confirm_text="המשך",
+            cancel_text="חזור",
+        ):
             return
         self.confirmed = True
         self.destroy()
