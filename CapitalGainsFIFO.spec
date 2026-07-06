@@ -13,6 +13,7 @@ a = Analysis(
         ("assets/fonts/Assistant.ttf", "assets/fonts"),
         ("assets/fonts/OFL.txt", "assets/fonts"),
         ("assets/images/capital_gains_logo.png", "assets/images"),
+        ("assets/images/capital_gains_logo_transparent.png", "assets/images"),
     ],
     hiddenimports=hiddenimports,
     hookspath=[],

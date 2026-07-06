@@ -36,26 +36,28 @@ except Exception:  # pragma: no cover - optional dependency
 
 
 PALETTE = {
-    "bg": "#050607",
-    "granite": "#0B0D10",
-    "granite_light": "#2A2E32",
-    "graph_pattern": "#30343A",
-    "panel": "#111417",
-    "panel_alt": "#0B0E11",
-    "panel_glass": "#171B1F",
-    "mist": "#20252A",
-    "line": "#3A4047",
-    "text": "#F4F7F8",
-    "muted": "#A9B1B7",
-    "primary": "#C8D0D6",
-    "primary_hover": "#E7ECEF",
-    "button_text": "#080A0C",
-    "secondary": "#5E676F",
-    "secondary_hover": "#7C858D",
-    "card_blue": "#0E2533",
-    "card_pink": "#2A1824",
-    "card_yellow": "#2C2815",
-    "card_silver": "#20252A",
+    "bg": "#05070B",
+    "granite": "#08101A",
+    "granite_light": "#1A2230",
+    "graph_pattern": "#2A3341",
+    "panel": "#0F141B",
+    "panel_alt": "#0A0F15",
+    "panel_glass": "#131A23",
+    "mist": "#1A2230",
+    "line": "#313B49",
+    "text": "#F6F1E8",
+    "muted": "#C2B7A6",
+    "primary": "#CFA85A",
+    "primary_hover": "#E1C57D",
+    "primary_border": "#9D7B3B",
+    "button_text": "#10151C",
+    "secondary": "#1B2736",
+    "secondary_hover": "#26384D",
+    "secondary_border": "#415066",
+    "card_blue": "#102838",
+    "card_pink": "#2C1928",
+    "card_yellow": "#372E16",
+    "card_silver": "#17202C",
     "chart_white": "#FFFFFF",
     "chart_blue": "#8FD8FF",
     "chart_pink": "#FF8FB8",
@@ -210,7 +212,13 @@ class CapitalGainsApp(BaseWindow):
             anchor="e",
         ).grid(row=1, column=0, padx=28, pady=(0, 18), sticky="ew")
 
-        auth_frame = ctk.CTkFrame(header, corner_radius=8, fg_color=PALETTE["panel_glass"], border_width=1, border_color=PALETTE["line"])
+        auth_frame = ctk.CTkFrame(
+            header,
+            corner_radius=8,
+            fg_color=PALETTE["panel_glass"],
+            border_width=1,
+            border_color=PALETTE["primary_border"],
+        )
         auth_frame.grid(row=0, column=1, rowspan=2, padx=(0, 28), pady=18, sticky="e")
         auth_frame.grid_columnconfigure(0, weight=1)
 
@@ -526,10 +534,10 @@ class CapitalGainsApp(BaseWindow):
             command=command,
             fg_color=fg_color or PALETTE["primary"],
             hover_color=PALETTE["secondary_hover"] if is_secondary else PALETTE["primary_hover"],
-            text_color="white" if is_secondary else PALETTE["button_text"],
+            text_color=PALETTE["text"] if is_secondary else PALETTE["button_text"],
             corner_radius=8,
             border_width=1,
-            border_color="#EDF1F3" if not is_secondary else PALETTE["line"],
+            border_color=PALETTE["secondary_border"] if is_secondary else PALETTE["primary_border"],
         )
 
     def _refresh_identity_ui(self) -> None:
@@ -920,7 +928,7 @@ class LoginDialog(ctk.CTkToplevel):
         super().__init__(parent)
         self.parent = parent
         self.title(ui_title("התחברות"))
-        self.geometry("520x560")
+        self.geometry("560x640")
         self.transient(parent)
         self.grab_set()
         self.configure(fg_color=PALETTE["bg"])
@@ -941,35 +949,59 @@ class LoginDialog(ctk.CTkToplevel):
         self._build_ui()
 
     def _build_ui(self) -> None:
+        brand_frame = ctk.CTkFrame(
+            self,
+            fg_color=PALETTE["panel_alt"],
+            corner_radius=12,
+            border_width=1,
+            border_color=PALETTE["primary_border"],
+        )
+        brand_frame.pack(fill="x", padx=24, pady=(20, 14))
+
         self.logo_image = self._load_logo_image()
         if self.logo_image is not None:
-            logo_label = tk.Label(self, image=self.logo_image, bg=PALETTE["bg"], bd=0, highlightthickness=0)
-            logo_label.pack(pady=(18, 6))
+            logo_label = tk.Label(self, image=self.logo_image, bg=PALETTE["panel_alt"], bd=0, highlightthickness=0)
+            logo_label.pack(in_=brand_frame, pady=(18, 8))
         ctk.CTkLabel(
-            self,
+            brand_frame,
             text=ui_text("ברוכים הבאים"),
             font=ui_font(24, "bold"),
             text_color=PALETTE["text"],
             anchor="e",
-        ).pack(fill="x", padx=24, pady=(4, 4))
+        ).pack(fill="x", padx=24, pady=(2, 4))
         ctk.CTkLabel(
-            self,
-            text=ui_text("כדי להיכנס לניתוח הדוחות צריך להתחבר עם משתמש מקומי או עם Google."),
+            brand_frame,
+            text=ui_text("כניסה מאובטחת לניתוח דוחות, תובנות וייצוא אקסל מדויק."),
             font=ui_font(13),
             text_color=PALETTE["muted"],
             anchor="e",
             justify="right",
-            wraplength=440,
-        ).pack(fill="x", padx=24, pady=(0, 14))
+            wraplength=470,
+        ).pack(fill="x", padx=24, pady=(0, 18))
 
-        tabs = ctk.CTkTabview(self, fg_color=PALETTE["panel"], segmented_button_fg_color=PALETTE["mist"])
+        tabs = ctk.CTkTabview(
+            self,
+            fg_color=PALETTE["panel"],
+            segmented_button_fg_color=PALETTE["mist"],
+            segmented_button_selected_color=PALETTE["primary"],
+            segmented_button_selected_hover_color=PALETTE["primary_hover"],
+            segmented_button_unselected_color=PALETTE["secondary"],
+            segmented_button_unselected_hover_color=PALETTE["secondary_hover"],
+            text_color=PALETTE["button_text"],
+        )
         tabs.pack(fill="both", expand=True, padx=24, pady=(0, 12))
         login_tab = tabs.add(ui_text("התחברות"))
         register_tab = tabs.add(ui_text("הרשמה"))
         self._build_login_tab(login_tab)
         self._build_register_tab(register_tab)
 
-        footer = ctk.CTkFrame(self, fg_color=PALETTE["panel"], corner_radius=8)
+        footer = ctk.CTkFrame(
+            self,
+            fg_color=PALETTE["panel"],
+            corner_radius=8,
+            border_width=1,
+            border_color=PALETTE["line"],
+        )
         footer.pack(fill="x", padx=24, pady=(0, 20))
         self.status_label = ctk.CTkLabel(
             footer,
@@ -981,7 +1013,13 @@ class LoginDialog(ctk.CTkToplevel):
             wraplength=420,
         )
         self.status_label.pack(fill="x", padx=14, pady=(10, 8))
-        self.google_button = self.parent._button(footer, "כניסה עם Google", self._sign_in_with_google, width=180)
+        self.google_button = self.parent._button(
+            footer,
+            "כניסה עם Google",
+            self._sign_in_with_google,
+            fg_color=PALETTE["secondary"],
+            width=180,
+        )
         self.google_button.pack(anchor="e", padx=14, pady=(0, 12))
         if not self.parent.auth_service.has_google_configuration():
             self.google_button.configure(state="disabled")
@@ -996,6 +1034,10 @@ class LoginDialog(ctk.CTkToplevel):
             variable=self.login_remember,
             font=ui_font(12),
             text_color=PALETTE["text"],
+            fg_color=PALETTE["primary"],
+            hover_color=PALETTE["primary_hover"],
+            border_color=PALETTE["primary_border"],
+            checkmark_color=PALETTE["button_text"],
         ).pack(anchor="e", padx=18, pady=(2, 12))
         self.parent._button(tab, "התחברות", self._login_local, width=140).pack(anchor="e", padx=18, pady=(0, 18))
 
@@ -1010,6 +1052,10 @@ class LoginDialog(ctk.CTkToplevel):
             variable=self.register_remember,
             font=ui_font(12),
             text_color=PALETTE["text"],
+            fg_color=PALETTE["primary"],
+            hover_color=PALETTE["primary_hover"],
+            border_color=PALETTE["primary_border"],
+            checkmark_color=PALETTE["button_text"],
         ).pack(anchor="e", padx=18, pady=(2, 12))
         self.parent._button(tab, "יצירת משתמש", self._register_local, width=140).pack(anchor="e", padx=18, pady=(0, 18))
 
@@ -1026,7 +1072,10 @@ class LoginDialog(ctk.CTkToplevel):
             textvariable=variable,
             justify="right",
             font=ui_font(13),
+            height=38,
+            fg_color=PALETTE["panel_alt"],
             border_color=PALETTE["line"],
+            text_color=PALETTE["text"],
             show=show or "",
         )
         entry.pack(fill="x", padx=18, pady=(0, 4))
@@ -1036,14 +1085,14 @@ class LoginDialog(ctk.CTkToplevel):
             self.status_label.configure(text=ui_text(message), text_color=color or PALETTE["muted"])
 
     def _load_logo_image(self) -> tk.PhotoImage | None:
-        logo_path = app_root() / "assets" / "images" / "capital_gains_logo.png"
+        logo_path = app_root() / "assets" / "images" / "capital_gains_logo_transparent.png"
         if not logo_path.exists():
             return None
         try:
             image = tk.PhotoImage(file=str(logo_path))
         except tk.TclError:
             return None
-        return image.subsample(4, 4)
+        return image.subsample(5, 5)
 
     def _login_local(self) -> None:
         try:
