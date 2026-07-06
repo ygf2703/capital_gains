@@ -392,6 +392,31 @@ class CapitalGainsApp(BaseWindow):
         question_entry.bind("<Return>", lambda _event: self.ask_report_question())
         self._button(chat_frame, "שאלי", self.ask_report_question, width=84).grid(row=1, column=1, padx=(0, 12), pady=(0, 12))
 
+        suggestions = ctk.CTkFrame(chat_frame, fg_color="transparent")
+        suggestions.grid(row=2, column=0, columnspan=2, padx=12, pady=(0, 12), sticky="ew")
+        suggestions.grid_columnconfigure((0, 1, 2), weight=1)
+        self._button(
+            suggestions,
+            "מה הרווח הכולל?",
+            lambda: self._ask_suggested_question("מה הרווח הכולל?"),
+            fg_color=PALETTE["secondary"],
+            width=140,
+        ).grid(row=0, column=0, padx=(0, 6), sticky="ew")
+        self._button(
+            suggestions,
+            "מה הנייר הכי בולט?",
+            lambda: self._ask_suggested_question("מה הנייר הכי בולט בדוח?"),
+            fg_color=PALETTE["secondary"],
+            width=140,
+        ).grid(row=0, column=1, padx=6, sticky="ew")
+        self._button(
+            suggestions,
+            "מה פתוח כרגע?",
+            lambda: self._ask_suggested_question("מה הפוזיציות הפתוחות?"),
+            fg_color=PALETTE["secondary"],
+            width=140,
+        ).grid(row=0, column=2, padx=(6, 0), sticky="ew")
+
     def _build_dashboard_panel(self, parent: ctk.CTkFrame) -> None:
         dashboard = ctk.CTkScrollableFrame(parent, corner_radius=8, fg_color=PALETTE["panel"], border_width=1, border_color=PALETTE["line"])
         dashboard.grid(row=0, column=1, sticky="nsew")
@@ -577,6 +602,10 @@ class CapitalGainsApp(BaseWindow):
         self._append_chat_entry("שאלה", question)
         self._append_chat_entry("תשובה", answer)
         self.question_var.set("")
+
+    def _ask_suggested_question(self, question: str) -> None:
+        self.question_var.set(question)
+        self.ask_report_question()
 
     def _append_chat_entry(self, role: str, text: str) -> None:
         if self.chat_box is None:
