@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
 
-from .auth import AuthSession, GoogleAuthService
+from .auth import AuthService, AuthSession
 from .exchange_rates import parse_user_date
 from .models import CalculationResult, ExchangeRateSnapshot, Transaction, ValidationIssue
 from .parsers import HeaderPreview
@@ -46,8 +46,8 @@ class ExportOutcome:
 
 
 class CapitalGainsWorkflow:
-    def __init__(self, auth_service: GoogleAuthService | None = None) -> None:
-        self.auth_service = auth_service or GoogleAuthService()
+    def __init__(self, auth_service: AuthService | None = None) -> None:
+        self.auth_service = auth_service or AuthService()
         auth_session = self.auth_service.load_session()
         self.state = AppState(
             auth_session=auth_session,
@@ -71,10 +71,22 @@ class CapitalGainsWorkflow:
         self.state.result = None
 
     def has_google_configuration(self) -> bool:
-        return self.auth_service.has_client_configuration()
+        return self.auth_service.has_google_configuration()
 
-    def sign_in(self) -> AuthSession:
-        session = self.auth_service.sign_in()
+    def sign_in_with_google(self) -> AuthSession:
+        session = self.auth_service.sign_in_with_google()
+        self.state.auth_session = session
+        self.state.user_identity = session.identity if session.email else load_user_identity()
+        return session
+
+    def sign_in_local(self, email: str, password: str, remember: bool = True) -> AuthSession:
+        session = self.auth_service.sign_in_local(email, password, remember=remember)
+        self.state.auth_session = session
+        self.state.user_identity = session.identity if session.email else load_user_identity()
+        return session
+
+    def register_local_user(self, name: str, email: str, password: str, remember: bool = True) -> AuthSession:
+        session = self.auth_service.register_local_user(name, email, password, remember=remember)
         self.state.auth_session = session
         self.state.user_identity = session.identity if session.email else load_user_identity()
         return session

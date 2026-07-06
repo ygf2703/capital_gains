@@ -10,7 +10,16 @@ from tkinter import filedialog, messagebox, ttk
 import customtkinter as ctk
 
 from .application import AnalysisPreparation, CapitalGainsWorkflow, ExportOutcome
-from .auth import AuthConfigurationError, AuthSession, GoogleAuthError, GoogleAuthService
+from .auth import (
+    AuthConfigurationError,
+    AuthService,
+    AuthSession,
+    DuplicateUserError,
+    GoogleAuthError,
+    InvalidCredentialsError,
+    LocalAuthError,
+    WeakPasswordError,
+)
 from .dashboard import build_dashboard_summary
 from .exchange_rates import parse_user_date
 from .models import CalculationResult, ExchangeRateSnapshot, Transaction, ValidationIssue
@@ -134,6 +143,7 @@ class CapitalGainsApp(BaseWindow):
         self.auth_button: ctk.CTkButton | None = None
         self.question_var = tk.StringVar()
         self.chat_box: ctk.CTkTextbox | None = None
+        self.login_dialog: LoginDialog | None = None
 
         self._build_ui()
 
@@ -174,7 +184,7 @@ class CapitalGainsApp(BaseWindow):
         self.workflow.state.user_identity = value
 
     @property
-    def auth_service(self) -> GoogleAuthService:
+    def auth_service(self) -> AuthService:
         return self.workflow.auth_service
 
     def _build_ui(self) -> None:
@@ -224,7 +234,7 @@ class CapitalGainsApp(BaseWindow):
         )
         self.auth_hint_label.grid(row=1, column=0, padx=14, pady=(0, 10), sticky="ew")
 
-        self.auth_button = self._button(auth_frame, "התחברי עם Google", self.toggle_google_auth, width=164)
+        self.auth_button = self._button(auth_frame, "התחברות", self.toggle_auth_session, width=164)
         self.auth_button.grid(row=2, column=0, padx=14, pady=(0, 12), sticky="e")
 
         toolbar = ctk.CTkFrame(self, corner_radius=8, fg_color=PALETTE["panel_glass"], border_width=1, border_color=PALETTE["line"])
@@ -288,6 +298,7 @@ class CapitalGainsApp(BaseWindow):
 
         self._refresh_identity_ui()
         self.after(200, self._draw_empty_dashboard)
+        self.after(80, self._require_authentication)
 
     def _build_file_panel(self, parent: ctk.CTkFrame) -> None:
         panel = ctk.CTkFrame(parent, corner_radius=8, fg_color=PALETTE["panel"], border_width=1, border_color=PALETTE["line"])
@@ -530,55 +541,47 @@ class CapitalGainsApp(BaseWindow):
 
         if self.auth_session.connected and self.auth_session.email:
             profile_text = self.auth_session.email
-            hint_text = "הזדהות עם Google פעילה. הקבצים והניתוחים נשארים מקומיים על המחשב."
-            button_text = "התנתקי מ-Google"
-        elif self.auth_service.has_client_configuration():
-            profile_text = "Google Sign-In מוכן"
-            hint_text = "אפשר להתחבר כדי לזהות את המשתמש. שם הברכה ייגזר מהאימייל."
-            button_text = "התחברי עם Google"
+            provider_label = "Google" if self.auth_session.provider == "google" else "אימייל וסיסמה"
+            hint_text = f"מחוברת דרך {provider_label}. הקבצים והניתוחים נשארים מקומיים על המחשב."
+            button_text = "התנתקות"
         else:
-            profile_text = "Google Sign-In לא הוגדר"
-            hint_text = "חסר קובץ google_client_secret.json בתיקיית config או ב-LOCALAPPDATA."
-            button_text = "הגדירי Google"
+            profile_text = "נדרש חיבור משתמש"
+            if self.auth_service.has_google_configuration():
+                hint_text = "אפשר להתחבר עם אימייל וסיסמה או עם Google לפני שימוש באפליקציה."
+            else:
+                hint_text = "אפשר להתחבר עם אימייל וסיסמה. חיבור Google זמין אחרי הגדרת client secret."
+            button_text = "התחברות / הרשמה"
 
         self.profile_label.configure(text=ui_text(profile_text))
         self.auth_hint_label.configure(text=ui_text(hint_text))
         self.auth_button.configure(text=ui_text(button_text), state="normal")
 
-    def toggle_google_auth(self) -> None:
+    def _require_authentication(self) -> None:
+        if self.auth_session.connected:
+            return
+        if self.login_dialog is not None and self.login_dialog.winfo_exists():
+            self.login_dialog.lift()
+            return
+        self.login_dialog = LoginDialog(self)
+
+    def toggle_auth_session(self) -> None:
         if self.auth_session.connected and self.auth_session.email:
             self.workflow.sign_out()
-            self.status.configure(text=ui_text("ההתנתקות מ-Google הושלמה"))
+            self.status.configure(text=ui_text("ההתנתקות הושלמה"))
             self._refresh_identity_ui()
+            self._require_authentication()
             return
 
-        self._start_google_sign_in()
-
-    def _start_google_sign_in(self) -> None:
-        if self.auth_button is not None:
-            self.auth_button.configure(state="disabled")
-        if self.auth_hint_label is not None:
-            self.auth_hint_label.configure(text=ui_text("פותח דפדפן להתחברות מאובטחת עם Google..."))
-        self.status.configure(text=ui_text("מתחבר ל-Google"))
-        threading.Thread(target=self._google_sign_in_worker, daemon=True).start()
-
-    def _google_sign_in_worker(self) -> None:
-        try:
-            session = self.workflow.sign_in()
-        except (AuthConfigurationError, GoogleAuthError) as exc:
-            self.after(0, lambda: self._handle_google_sign_in_error(str(exc)))
-            return
-        self.after(0, lambda: self._apply_auth_session(session))
-
-    def _handle_google_sign_in_error(self, message: str) -> None:
-        messagebox.showwarning(ui_title("Google Sign-In"), ui_text(message))
-        self.status.configure(text=ui_text("התחברות Google לא הושלמה"))
-        self._refresh_identity_ui()
+        self._require_authentication()
 
     def _apply_auth_session(self, session: AuthSession) -> None:
         self.auth_session = session
         self.user_identity = session.identity if session.email else self.workflow.state.user_identity
-        self.status.configure(text=ui_text("התחברות Google הושלמה"))
+        provider_label = "Google" if session.provider == "google" else "אימייל"
+        self.status.configure(text=ui_text(f"התחברות דרך {provider_label} הושלמה"))
+        if self.login_dialog is not None and self.login_dialog.winfo_exists():
+            self.login_dialog.destroy()
+        self.login_dialog = None
         self._refresh_identity_ui()
 
     def configure_columns(self) -> None:
@@ -910,6 +913,177 @@ class CapitalGainsApp(BaseWindow):
                 fill=PALETTE["muted"],
                 font=(ASSISTANT_FONT_FAMILY, 9),
             )
+
+
+class LoginDialog(ctk.CTkToplevel):
+    def __init__(self, parent: CapitalGainsApp) -> None:
+        super().__init__(parent)
+        self.parent = parent
+        self.title(ui_title("התחברות"))
+        self.geometry("520x560")
+        self.transient(parent)
+        self.grab_set()
+        self.configure(fg_color=PALETTE["bg"])
+        self.protocol("WM_DELETE_WINDOW", self._on_close)
+
+        self.login_email = tk.StringVar()
+        self.login_password = tk.StringVar()
+        self.login_remember = tk.BooleanVar(value=True)
+        self.register_name = tk.StringVar()
+        self.register_email = tk.StringVar()
+        self.register_password = tk.StringVar()
+        self.register_confirm = tk.StringVar()
+        self.register_remember = tk.BooleanVar(value=True)
+        self.status_label: ctk.CTkLabel | None = None
+        self.google_button: ctk.CTkButton | None = None
+
+        self._build_ui()
+
+    def _build_ui(self) -> None:
+        ctk.CTkLabel(
+            self,
+            text=ui_text("ברוכה הבאה"),
+            font=ui_font(24, "bold"),
+            text_color=PALETTE["text"],
+            anchor="e",
+        ).pack(fill="x", padx=24, pady=(22, 4))
+        ctk.CTkLabel(
+            self,
+            text=ui_text("כדי להיכנס לניתוח הדוחות צריך להתחבר עם משתמש מקומי או עם Google."),
+            font=ui_font(13),
+            text_color=PALETTE["muted"],
+            anchor="e",
+            justify="right",
+            wraplength=440,
+        ).pack(fill="x", padx=24, pady=(0, 14))
+
+        tabs = ctk.CTkTabview(self, fg_color=PALETTE["panel"], segmented_button_fg_color=PALETTE["mist"])
+        tabs.pack(fill="both", expand=True, padx=24, pady=(0, 12))
+        login_tab = tabs.add(ui_text("התחברות"))
+        register_tab = tabs.add(ui_text("הרשמה"))
+        self._build_login_tab(login_tab)
+        self._build_register_tab(register_tab)
+
+        footer = ctk.CTkFrame(self, fg_color=PALETTE["panel"], corner_radius=8)
+        footer.pack(fill="x", padx=24, pady=(0, 20))
+        self.status_label = ctk.CTkLabel(
+            footer,
+            text=ui_text("אפשר להתחבר עם אימייל וסיסמה, או להמשיך עם Google."),
+            font=ui_font(12),
+            text_color=PALETTE["muted"],
+            anchor="e",
+            justify="right",
+            wraplength=420,
+        )
+        self.status_label.pack(fill="x", padx=14, pady=(10, 8))
+        self.google_button = self.parent._button(footer, "המשיכי עם Google", self._sign_in_with_google, width=180)
+        self.google_button.pack(anchor="e", padx=14, pady=(0, 12))
+        if not self.parent.auth_service.has_google_configuration():
+            self.google_button.configure(state="disabled")
+            self.status_label.configure(text=ui_text("חיבור Google יהיה זמין אחרי הוספת google_client_secret.json."))
+
+    def _build_login_tab(self, tab) -> None:
+        self._labeled_entry(tab, "אימייל", self.login_email)
+        self._labeled_entry(tab, "סיסמה", self.login_password, show="*")
+        ctk.CTkCheckBox(
+            tab,
+            text=ui_text("זכור אותי במחשב הזה"),
+            variable=self.login_remember,
+            font=ui_font(12),
+            text_color=PALETTE["text"],
+        ).pack(anchor="e", padx=18, pady=(2, 12))
+        self.parent._button(tab, "התחברות", self._login_local, width=140).pack(anchor="e", padx=18, pady=(0, 18))
+
+    def _build_register_tab(self, tab) -> None:
+        self._labeled_entry(tab, "שם מלא", self.register_name)
+        self._labeled_entry(tab, "אימייל", self.register_email)
+        self._labeled_entry(tab, "סיסמה", self.register_password, show="*")
+        self._labeled_entry(tab, "אימות סיסמה", self.register_confirm, show="*")
+        ctk.CTkCheckBox(
+            tab,
+            text=ui_text("זכור אותי במחשב הזה"),
+            variable=self.register_remember,
+            font=ui_font(12),
+            text_color=PALETTE["text"],
+        ).pack(anchor="e", padx=18, pady=(2, 12))
+        self.parent._button(tab, "יצירת משתמש", self._register_local, width=140).pack(anchor="e", padx=18, pady=(0, 18))
+
+    def _labeled_entry(self, parent, label: str, variable: tk.StringVar, show: str | None = None) -> None:
+        ctk.CTkLabel(
+            parent,
+            text=ui_text(label),
+            font=ui_font(13, "bold"),
+            text_color=PALETTE["text"],
+            anchor="e",
+        ).pack(fill="x", padx=18, pady=(14, 4))
+        entry = ctk.CTkEntry(
+            parent,
+            textvariable=variable,
+            justify="right",
+            font=ui_font(13),
+            border_color=PALETTE["line"],
+            show=show or "",
+        )
+        entry.pack(fill="x", padx=18, pady=(0, 4))
+
+    def _set_status(self, message: str, color: str | None = None) -> None:
+        if self.status_label is not None:
+            self.status_label.configure(text=ui_text(message), text_color=color or PALETTE["muted"])
+
+    def _login_local(self) -> None:
+        try:
+            session = self.parent.workflow.sign_in_local(
+                self.login_email.get(),
+                self.login_password.get(),
+                remember=self.login_remember.get(),
+            )
+        except (InvalidCredentialsError, LocalAuthError) as exc:
+            self._set_status(str(exc), PALETTE["warning"])
+            return
+        self.parent._apply_auth_session(session)
+
+    def _register_local(self) -> None:
+        if self.register_password.get() != self.register_confirm.get():
+            self._set_status("הסיסמאות אינן זהות.", PALETTE["warning"])
+            return
+        try:
+            session = self.parent.workflow.register_local_user(
+                self.register_name.get(),
+                self.register_email.get(),
+                self.register_password.get(),
+                remember=self.register_remember.get(),
+            )
+        except (DuplicateUserError, WeakPasswordError, LocalAuthError) as exc:
+            self._set_status(str(exc), PALETTE["warning"])
+            return
+        self.parent._apply_auth_session(session)
+
+    def _sign_in_with_google(self) -> None:
+        if self.google_button is not None:
+            self.google_button.configure(state="disabled")
+        self._set_status("פותח דפדפן להתחברות מאובטחת עם Google...", PALETTE["primary_hover"])
+        threading.Thread(target=self._google_worker, daemon=True).start()
+
+    def _google_worker(self) -> None:
+        try:
+            session = self.parent.workflow.sign_in_with_google()
+        except (AuthConfigurationError, GoogleAuthError) as exc:
+            self.after(0, lambda: self._google_error(str(exc)))
+            return
+        self.after(0, lambda: self.parent._apply_auth_session(session))
+
+    def _google_error(self, message: str) -> None:
+        if self.google_button is not None:
+            self.google_button.configure(state="normal")
+        self._set_status(message, PALETTE["warning"])
+
+    def _on_close(self) -> None:
+        if self.parent.auth_session.connected:
+            self.destroy()
+            return
+        if messagebox.askyesno(ui_title("סגירת האפליקציה"), ui_text("בלי התחברות אי אפשר להמשיך. לסגור את האפליקציה?"), parent=self):
+            self.destroy()
+            self.parent.destroy()
 
 
 class MappingTemplateDialog(ctk.CTkToplevel):

@@ -5,13 +5,17 @@ import unittest
 from openpyxl import Workbook
 
 from capital_gains_app.application import CapitalGainsWorkflow
-from capital_gains_app.auth import GoogleAuthService
+from capital_gains_app.auth import AuthService
 
 
 class ApplicationWorkflowTests(unittest.TestCase):
     def test_add_files_deduplicates_excel_inputs(self) -> None:
         with TemporaryDirectory() as tmp:
-            auth = GoogleAuthService(profile_path=Path(tmp) / "profile.json", token_path=Path(tmp) / "token.json")
+            auth = AuthService(
+                profile_path=Path(tmp) / "profile.json",
+                token_path=Path(tmp) / "token.json",
+                users_path=Path(tmp) / "users.json",
+            )
             workflow = CapitalGainsWorkflow(auth_service=auth)
             sample = Path(tmp) / "sample.xlsx"
             sample.touch()
@@ -23,7 +27,11 @@ class ApplicationWorkflowTests(unittest.TestCase):
 
     def test_prepare_analysis_parses_generic_report(self) -> None:
         with TemporaryDirectory() as tmp:
-            auth = GoogleAuthService(profile_path=Path(tmp) / "profile.json", token_path=Path(tmp) / "token.json")
+            auth = AuthService(
+                profile_path=Path(tmp) / "profile.json",
+                token_path=Path(tmp) / "token.json",
+                users_path=Path(tmp) / "users.json",
+            )
             workflow = CapitalGainsWorkflow(auth_service=auth)
             workbook_path = Path(tmp) / "generic.xlsx"
 
@@ -44,12 +52,30 @@ class ApplicationWorkflowTests(unittest.TestCase):
 
     def test_answer_question_uses_state_result(self) -> None:
         with TemporaryDirectory() as tmp:
-            auth = GoogleAuthService(profile_path=Path(tmp) / "profile.json", token_path=Path(tmp) / "token.json")
+            auth = AuthService(
+                profile_path=Path(tmp) / "profile.json",
+                token_path=Path(tmp) / "token.json",
+                users_path=Path(tmp) / "users.json",
+            )
             workflow = CapitalGainsWorkflow(auth_service=auth)
 
             answer = workflow.answer_question("כמה תנועות יש?")
 
             self.assertIn("קודם צריך לנתח", answer)
+
+    def test_local_login_updates_workflow_state(self) -> None:
+        with TemporaryDirectory() as tmp:
+            auth = AuthService(
+                profile_path=Path(tmp) / "profile.json",
+                token_path=Path(tmp) / "token.json",
+                users_path=Path(tmp) / "users.json",
+            )
+            workflow = CapitalGainsWorkflow(auth_service=auth)
+
+            session = workflow.register_local_user("Liat Cohen", "liat@gmail.com", "secret12")
+
+            self.assertEqual(session.provider, "local")
+            self.assertEqual(workflow.state.user_identity.display_name, "Liat Cohen")
 
 
 if __name__ == "__main__":

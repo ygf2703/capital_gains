@@ -2,11 +2,18 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
-from capital_gains_app.auth import GOOGLE_CLIENT_SECRET_ENV, AuthSession, GoogleAuthService
+from capital_gains_app.auth import (
+    GOOGLE_CLIENT_SECRET_ENV,
+    AuthService,
+    AuthSession,
+    DuplicateUserError,
+    GoogleAuthService,
+    InvalidCredentialsError,
+)
 
 
-class GoogleAuthServiceTests(unittest.TestCase):
-    def test_client_secret_candidates_prefer_env_then_repo_and_local(self) -> None:
+class AuthServiceTests(unittest.TestCase):
+    def test_google_client_secret_candidates_prefer_env_then_repo_and_local(self) -> None:
         with TemporaryDirectory() as tmp:
             profile_path = Path(tmp) / "profile.json"
             service = GoogleAuthService(profile_path=profile_path)
@@ -36,18 +43,54 @@ class GoogleAuthServiceTests(unittest.TestCase):
             self.assertEqual(session.email, "liat.cohen@gmail.com")
             self.assertEqual(session.identity.display_name, "Liat")
 
-    def test_sign_out_clears_google_profile_and_token(self) -> None:
+    def test_local_registration_and_login_roundtrip(self) -> None:
         with TemporaryDirectory() as tmp:
             profile_path = Path(tmp) / "profile.json"
-            token_path = Path(tmp) / "google_token.json"
-            profile_path.write_text('{"provider":"google","email":"liat.cohen@gmail.com"}', encoding="utf-8")
-            token_path.write_text("{}", encoding="utf-8")
+            users_path = Path(tmp) / "users.json"
+            auth = AuthService(profile_path=profile_path, users_path=users_path, token_path=Path(tmp) / "token.json")
 
-            service = GoogleAuthService(profile_path=profile_path, token_path=token_path)
-            service.sign_out()
+            session = auth.register_local_user("Liat Cohen", "Liat.Cohen@gmail.com", "secret12", remember=True)
+            logged_in = auth.sign_in_local("liat.cohen@gmail.com", "secret12", remember=False)
+
+            self.assertEqual(session.provider, "local")
+            self.assertEqual(logged_in.email, "liat.cohen@gmail.com")
+            self.assertEqual(auth.load_session().email, "liat.cohen@gmail.com")
+
+    def test_duplicate_local_registration_is_rejected(self) -> None:
+        with TemporaryDirectory() as tmp:
+            auth = AuthService(
+                profile_path=Path(tmp) / "profile.json",
+                users_path=Path(tmp) / "users.json",
+                token_path=Path(tmp) / "token.json",
+            )
+            auth.register_local_user("Liat Cohen", "liat@gmail.com", "secret12")
+
+            with self.assertRaises(DuplicateUserError):
+                auth.register_local_user("Liat Cohen", "liat@gmail.com", "secret12")
+
+    def test_invalid_local_password_is_rejected(self) -> None:
+        with TemporaryDirectory() as tmp:
+            auth = AuthService(
+                profile_path=Path(tmp) / "profile.json",
+                users_path=Path(tmp) / "users.json",
+                token_path=Path(tmp) / "token.json",
+            )
+            auth.register_local_user("Liat Cohen", "liat@gmail.com", "secret12")
+
+            with self.assertRaises(InvalidCredentialsError):
+                auth.sign_in_local("liat@gmail.com", "wrongpass")
+
+    def test_sign_out_clears_local_profile_but_keeps_user_store(self) -> None:
+        with TemporaryDirectory() as tmp:
+            profile_path = Path(tmp) / "profile.json"
+            users_path = Path(tmp) / "users.json"
+            auth = AuthService(profile_path=profile_path, users_path=users_path, token_path=Path(tmp) / "token.json")
+            auth.register_local_user("Liat Cohen", "liat@gmail.com", "secret12")
+
+            auth.sign_out()
 
             self.assertFalse(profile_path.exists())
-            self.assertFalse(token_path.exists())
+            self.assertTrue(users_path.exists())
 
     def test_auth_session_exposes_user_identity(self) -> None:
         session = AuthSession(provider="google", email="liat.cohen@gmail.com", name="Liat", connected=True)
