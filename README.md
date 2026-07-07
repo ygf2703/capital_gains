@@ -1,28 +1,70 @@
-# Capital Gains FIFO Desktop App
+# Capital Gains
 
-אפליקציית Windows מקומית לחישוב רווח/הפסד הון מניירות ערך לפי FIFO, על בסיס דוחות אקסל.
+אפליקציית Desktop מקומית ל-Windows לניתוח דוחות ניירות ערך, חישוב רווח/הפסד הון לפי FIFO, הפקת דוח Excel מסכם, והצגת דשבורד ותובנות מתוך הנתונים.
 
-## מה קיים כרגע
+האפליקציה בנויה כך שהלוגיקה העסקית נשארת מקומית על המחשב, בלי תלות בענן לצורך ניתוח הדוחות עצמם. במקביל, המבנה הפנימי כבר הוכן להמשך הדרך אל Microsoft Store ואל Android.
 
-- קריאת דוחות Excel וזיהוי אוטומטי של שורת הכותרות.
-- זיהוי דוחות גם לפי aliases של כותרות עמודות, לא רק לפי שני סטים קשיחים.
-- זיהוי גנרי של דוחות חדשים לפי headers נפוצים, גם כשהמבנה לא זהה לאגיס/לאומי.
-- שמירת תבניות התאמת עמודות מקומיות, כדי ללמד את האפליקציה דוח חדש פעם אחת בלבד.
-- ניקוי שורות פתיחה, סיכומים והערות.
-- נרמול תנועות מאגיס ולאומי למבנה אחיד.
-- חישוב FIFO עם עמלות בתוך עלות קניה/תמורת מכירה.
-- טיפול בסיסי באיחודי הון, Reverse Split, הקטנת הון והחלפת נייר.
-- תמיכה גם בדוח יחיד של נייר ערך אחד, וגם בכמה דוחות יחד.
-- הצגת 5 תובנות מרכזיות אוטומטיות מהדוח שמנותח.
-- שליפת שער דולר יציג מבנק ישראל חודש אחורה מתאריך מבוקש.
-- יצוא דוח Excel עם גיליונות Dashboard, Summary, Realized FIFO, Open Positions, Transactions, Corporate Actions, Validation Issues.
-- GUI ב-CustomTkinter עם בחירת קבצים, Drag & Drop כאשר `tkinterdnd2` מותקן, וייצוא בלחיצה.
-- אזור `שאלי את הדוח` שמספק תשובות מקומיות מתוך הנתונים שנותחו, כולל שאלות על נייר מסוים, טווח תאריכים, השוואה בין ניירות וחריגות.
-- CLI לאימות חישוב בלי ממשק.
-- מסך כניסה מלא עם שני מסלולים: משתמש מקומי עם אימייל/סיסמה, או התחברות עם Google.
-- שכבת auth מקומית ל-Desktop: הרשמה, התחברות, session מקומי, ופרופיל משתמש מחובר.
-- שכבות שירות נפרדות לניתוח, Q&A, תבניות דוחות ו-auth, כהכנה להפרדת ליבת הניתוח מהממשק.
-- שכבת `application workflow` שמרכזת state ו-use cases, כדי לאפשר בעתיד ממשקי Windows/Android מעל אותה לוגיקה.
+## מה האפליקציה יודעת לעשות היום
+
+- טעינת דוחות Excel של בנקים וברוקרים, כולל תמיכה בדוחות מוכרים ובדוחות גנריים לפי headers.
+- זיהוי אוטומטי של שורת הכותרות, ניקוי שורות פתיחה, סיכומים והערות.
+- שמירת תבניות מיפוי עמודות מקומיות, כך שאפשר "ללמד" את המערכת דוח חדש פעם אחת.
+- חישוב FIFO מלא לקניות ומכירות.
+- טיפול באירועי הון כמו `split`, `reverse split`, `capital reduction` והחלפות נייר.
+- תמיכה גם בדוח יחיד של נייר אחד וגם בכמה קבצים יחד.
+- משיכת שער דולר מבנק ישראל חודש אחורה מתאריך מבוקש, ושמירתו כחלק מהחישוב.
+- הפקת קובץ Excel מסכם עם גיליונות של dashboard, שורות FIFO, פוזיציות פתוחות, תנועות, אירועי הון והתראות.
+- דשבורד גרפי עם KPI, תובנות מרכזיות וגרפים.
+- ממשק RTL מלא ב־`CustomTkinter`, עם Drag & Drop כאשר `tkinterdnd2` מותקן.
+- מסך התחברות עם שני מסלולים:
+  - משתמש מקומי עם אימייל וסיסמה
+  - התחברות עם Google
+- מסך `Account / Settings` לניהול סטטוס התחברות וחיבור Google.
+- צ'אט פנימי לניתוח הדוח:
+  - מענה על שאלות על רווחים, תנועות, פוזיציות פתוחות, חריגות, אירועי הון ושער דולר
+  - החזרת אסמכתאות מתוך הדוח עצמו
+  - שאלות המשך חכמות לפי ההקשר של השאלה האחרונה
+
+## עקרונות מוצר
+
+- דוח הברוקר הוא מקור האמת לחישוב ה-FIFO.
+- מקורות שוק חיצוניים, אם נחבר בהמשך, ישמשו להעשרה, ולידציה והשלמות, לא לדריסת נתוני העסקאות.
+- כל הניתוחים נשמרים מקומית.
+- המערכת בנויה לשימוש פרקטי, עם הסבריות מספקת למשתמש ולא רק "מנוע חישוב שחור".
+
+## ארכיטקטורה בקצרה
+
+- [capital_gains_app/application.py](./capital_gains_app/application.py)  
+  שכבת workflow וניהול state אפליקטיבי.
+
+- [capital_gains_app/gui.py](./capital_gains_app/gui.py)  
+  שכבת ה-UI של אפליקציית ה-Desktop.
+
+- [capital_gains_app/parsers.py](./capital_gains_app/parsers.py)  
+  קריאת קבצים, זיהוי headers ונרמול דוחות.
+
+- [capital_gains_app/fifo.py](./capital_gains_app/fifo.py)  
+  מנוע FIFO וחישובי מלאי/מימוש.
+
+- [capital_gains_app/dashboard.py](./capital_gains_app/dashboard.py)  
+  בניית תקציר dashboard ותובנות.
+
+- [capital_gains_app/qa.py](./capital_gains_app/qa.py)  
+  מנוע Q&A, אסמכתאות מהדוח, ושאלות המשך חכמות.
+
+- [capital_gains_app/exporter.py](./capital_gains_app/exporter.py)  
+  יצוא דוח Excel סופי.
+
+- [capital_gains_app/auth.py](./capital_gains_app/auth.py)  
+  התחברות מקומית, Google Sign-In וניהול session.
+
+המבנה הזה מאפשר להחליף בהמשך את שכבת ה-UI בלי לכתוב מחדש את ליבת הניתוח.
+
+## דרישות מערכת
+
+- Windows
+- Python 3.12+
+- Excel reports בפורמט `xlsx` / `xlsm` / `xls`
 
 ## התקנה מקומית
 
@@ -32,85 +74,35 @@ py -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
-אם `py` לא זמין במחשב, יש להתקין Python 3.12+ ל-Windows ולסמן בהתקנה `Add python.exe to PATH`.
+אם `py` לא זמין:
 
-## הרצת GUI
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+```
+
+## הרצת האפליקציה
 
 ```powershell
 .\.venv\Scripts\python.exe app.py
 ```
 
-לבדיקת ברכה דינמית לפני חיבור Google Sign-In מלא:
+## הרצת בדיקות
 
 ```powershell
-$env:CAPITAL_GAINS_USER_EMAIL="liat.cohen@gmail.com"
-.\.venv\Scripts\python.exe app.py
+.\.venv\Scripts\python.exe -m unittest discover -s tests
 ```
 
-בעת חיבור Google Sign-In, שם התצוגה באפליקציה ייגזר מהאימייל של המשתמש. במסלול המקומי, המשתמש נרשם עם שם מלא, אימייל וסיסמה.
+## הרצת CLI
 
-## התחברות והרשמה
-
-עם פתיחת האפליקציה מופיע מסך כניסה חוסם. אפשר לבחור אחד משני מסלולים:
-
-1. התחברות / הרשמה עם אימייל וסיסמה
-2. המשך עם Google
-
-המשתמשים המקומיים נשמרים על המחשב ב-`%LOCALAPPDATA%\CapitalGains\users.json`, וה-session הפעיל נשמר ב-`%LOCALAPPDATA%\CapitalGains\profile.json`.
-
-## Google Sign-In ל-Desktop
-
-1. צור ב-Google Cloud OAuth Client מסוג `Desktop app`.
-2. שמור את קובץ ה-JSON בשם `google_client_secret.json`.
-3. הנח אותו באחד מהמיקומים הבאים:
-
-```text
-config\google_client_secret.json
-%LOCALAPPDATA%\CapitalGains\google_client_secret.json
-```
-
-אפשר גם להגדיר נתיב מותאם דרך משתנה הסביבה:
+לשימוש אלפא או לאימות חישוב בלי ממשק:
 
 ```powershell
-$env:CAPITAL_GAINS_GOOGLE_CLIENT_SECRET="C:\path\to\google_client_secret.json"
+.\.venv\Scripts\python.exe -m capital_gains_app.cli "דוח1.xlsx" "דוח2.xlsx" --output outputs\fifo_report.xlsx
 ```
 
-האפליקציה שומרת את ה-session מקומית על המחשב ואינה מעלה את דוחות האקסל לענן.
-
-## התאמת עמודות לדוח חדש
-
-כאשר נטען דוח חדש שהמערכת לא מזהה במלואו, אפשר להשתמש בכפתור `התאמת עמודות` בממשק:
-
-1. בוחרים את שורת הכותרות שזוהתה.
-2. ממפים תאריך, פעולה, כמות, מזהה נייר ומחיר/תמורה.
-3. שומרים תבנית מקומית.
-
-התבנית נשמרת ב-`%LOCALAPPDATA%\CapitalGains\report_templates.json` ותשמש גם בהרצות הבאות.
-
-## כיווני פיתוח קרובים
-
-- הפרדת ליבת הניתוח מהממשק כדי לאפשר Microsoft Store ו-Android בהמשך.
-- הרחבת מנוע השאלות המקומי כך שיכלול הסברים עמוקים יותר, השוואות בין ניירות ותמיכה בסינונים.
-- חיבור מאובטח של זהות משתמש גם למסלולי Android ו-Windows Store.
-- הרחבת מנוע השאלות המקומי לשפה חופשית יותר, כולל שאלות מורכבות יותר על מס, מטבע ואירועי הון.
-
-## כיוון Multi-Platform
-
-הקוד כבר מתחיל להיות מחולק כך:
-
-- `capital_gains_app/application.py` מנהל state ופעולות אפליקטיביות.
-- `capital_gains_app/gui.py` נשאר שכבת תצוגה ל-Desktop.
-- `capital_gains_app/parsers.py`, `fifo.py`, `exporter.py`, `qa.py` נשארים לוגיקה משותפת.
-
-במילים פשוטות: כדי להגיע בהמשך ל-Windows Store או Android, נוכל להחליף את שכבת ה-UI בלי לכתוב מחדש את מנוע הניתוח.
-
-## הרצת Console / Alpha
-
-```powershell
-.\.venv\Scripts\python.exe -m capital_gains_app.cli "דוח תנועות בנק אגיס.xlsx" "תנועות בניירות ערך בלל.xlsx" --output outputs\fifo_report.xlsx
-```
-
-אפשר להריץ גם על קובץ יחיד:
+אפשר גם על קובץ יחיד:
 
 ```powershell
 .\.venv\Scripts\python.exe -m capital_gains_app.cli "single-security-report.xlsx" --output outputs\single_security_fifo.xlsx --exchange-date 2026-06-29
@@ -122,14 +114,161 @@ $env:CAPITAL_GAINS_GOOGLE_CLIENT_SECRET="C:\path\to\google_client_secret.json"
 .\build_exe.ps1
 ```
 
-הקובץ ייווצר תחת:
+הפלט ייווצר תחת:
 
 ```text
 dist\CapitalGainsFIFO.exe
 ```
 
-## הערות מקצועיות
+## התחברות והרשמה
 
-הדוחות לדוגמה כוללים מכירות בתחילת התקופה ללא קניות קודמות באותו קובץ. במקרים כאלה המערכת מסמנת חוסר מלאי. כאשר קיים בדוח לאומי רווח/הפסד מדווח של הבנק, המערכת יכולה להסיק עלות היסטורית חסרה כדי שהדוח לא ייעצר, אך היא מסמנת זאת בשדה `inferred`.
+עם פתיחת האפליקציה מופיע מסך התחברות. כרגע יש שני מסלולים:
 
-המערכת אינה תחליף לייעוץ מס. לפני שימוש מול לקוחה אמיתית צריך לאמת מדגם עסקאות ידנית מול דוחות מקוריים ואישורי בנק.
+1. אימייל + סיסמה
+2. Google Sign-In
+
+המשתמשים המקומיים נשמרים ב:
+
+```text
+%LOCALAPPDATA%\CapitalGains\users.json
+```
+
+ה-session הפעיל נשמר ב:
+
+```text
+%LOCALAPPDATA%\CapitalGains\profile.json
+```
+
+## Google Sign-In
+
+האפליקציה כבר כוללת את ה-flow של Google ל־Desktop App. כדי להפעיל אותו צריך רק לספק קובץ OAuth JSON תקין.
+
+### מה צריך להגדיר ב-Google Cloud
+
+1. ליצור או לבחור Project
+2. להגדיר OAuth consent screen
+3. ליצור OAuth Client מסוג `Desktop app`
+4. להוריד את קובץ ה-JSON
+
+### איפה לשים את הקובץ
+
+שמור את הקובץ בשם:
+
+```text
+google_client_secret.json
+```
+
+באחד מהמיקומים הבאים:
+
+```text
+config\google_client_secret.json
+%LOCALAPPDATA%\CapitalGains\google_client_secret.json
+```
+
+או דרך משתנה סביבה:
+
+```powershell
+$env:CAPITAL_GAINS_GOOGLE_CLIENT_SECRET="C:\path\to\google_client_secret.json"
+```
+
+### הערות חשובות
+
+- האפליקציה פותחת דפדפן מערכת לצורך ההתחברות.
+- שם התצוגה של המשתמש נגזר מהאימייל, עם fallback לשם ש-Google מחזיר.
+- לא מעלים את דוחות האקסל לענן במסגרת תהליך ההתחברות.
+
+## עבודה עם דוח חדש שלא מזוהה אוטומטית
+
+אם הועלה דוח חדש והמערכת לא מזהה את כל השדות הדרושים:
+
+1. לבחור קובץ
+2. ללחוץ על `התאמת עמודות`
+3. למפות את השדות הנדרשים
+4. לשמור תבנית
+
+התבניות נשמרות מקומית ב:
+
+```text
+%LOCALAPPDATA%\CapitalGains\report_templates.json
+```
+
+## הצ'אט הפנימי
+
+אזור הצ'אט באפליקציה נועד לנתח את הדוח שכבר חושב, ולא להחליף את מנוע ה-FIFO.
+
+הוא יודע כרגע לענות על שאלות כמו:
+
+- מה הרווח הכולל
+- מה מצב נייר מסוים
+- כמה תנועות היו בטווח תאריכים
+- אילו פוזיציות נשארו פתוחות
+- אילו חריגות קיימות
+- האם היו אירועי הון
+- איזה שער דולר שימש
+- מה עוד לא מוצג במסך הראשי
+
+בנוסף:
+
+- לכל תשובה אפשר להחזיר אסמכתאות מתוך הדוח
+- לאחר תשובה מוצגות שאלות המשך חכמות לפי ההקשר
+
+## מקורות מידע חיצוניים
+
+נכון לעכשיו:
+
+- שער דולר נמשך מבנק ישראל
+- נתוני השוק עצמם אינם נמשכים מ-API של בורסה חיצונית כחלק ממנוע המס
+
+הגישה המוצרית כאן מכוונת:
+
+- **דוחות המקור** קובעים את החישוב
+- **API חיצוני** יכול בעתיד לעזור ב:
+  - מיפוי ניירות
+  - אירועי הון
+  - ולידציה
+  - מידע משלים לדשבורד
+
+כלומר, חיבור עתידי ל-TASE או מקור שוק אחר הוא שכבת enrichment, לא תחליף לדוח הברוקר.
+
+## מבנה תיקיות
+
+```text
+assets/                 קבצי עיצוב ומדיה
+capital_gains_app/      קוד המקור של האפליקציה
+config/                 קובצי הגדרה כמו Google client secret
+dist/                   פלט EXE
+docs/                   מסמכי עזר
+outputs/                דוחות Excel שיוצאו
+tests/                  בדיקות אוטומטיות
+app.py                  entry point
+build_exe.ps1           סקריפט בנייה ל-EXE
+CapitalGainsFIFO.spec   קובץ PyInstaller
+package_release.ps1     סקריפט אריזה להפצה
+```
+
+## Roadmap קרוב
+
+- חידוד נוסף של חוויית החשבון וההגדרות
+- חיבור מלא ומלוטש של Google Sign-In להפצה
+- שכבת Integrations מסודרת ל-Google, Bank of Israel ומקורות שוק עתידיים
+- הרחבת ה-Q&A לשאלות מורכבות יותר על מס, מטבע ואירועי הון
+- הכנת שכבת התאמה להמשך הדרך ל-Microsoft Store ול-Android
+
+## דיסקליימר מקצועי
+
+האפליקציה נועדה לסייע בניתוח, ארגון והפקת דוחות, אבל אינה תחליף לייעוץ מס או לייעוץ משפטי.
+
+לפני שימוש מול לקוח אמיתי או דיווח מס בפועל, מומלץ:
+
+- לבדוק מדגם עסקאות מול דוחות המקור
+- לאמת אירועי הון חריגים
+- לעבור על שורות שסומנו כחריגות או כ־`inferred`
+
+## סטטוס פרויקט
+
+הפרויקט פעיל ונמצא בתהליך שדרוג מתמשך, עם דגש על:
+
+- דיוק חישובי
+- UX בעברית ו-RTL
+- חוויית משתמש פרימיום ונקייה
+- מוכנות הדרגתית למוצר רב-פלטפורמי
