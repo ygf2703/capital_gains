@@ -1,6 +1,6 @@
 # Capital Gains FIFO Desktop App
 
-אפליקציית Windows מקומית לחישוב רווח/הפסד הון מניירות ערך לפי FIFO, על בסיס דוחות אקסל של אגיס ולאומי.
+אפליקציית Windows מקומית לחישוב רווח/הפסד הון מניירות ערך לפי FIFO, על בסיס דוחות אקסל.
 
 ## מה קיים כרגע
 
@@ -60,7 +60,7 @@ $env:CAPITAL_GAINS_USER_EMAIL="liat.cohen@gmail.com"
 
 ## Google Sign-In ל-Desktop
 
-1. צרי ב-Google Cloud OAuth Client מסוג `Desktop app`.
+1. צור ב-Google Cloud OAuth Client מסוג `Desktop app`.
 2. שמור את קובץ ה-JSON בשם `google_client_secret.json`.
 3. הנח אותו באחד מהמיקומים הבאים:
 
