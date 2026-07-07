@@ -17,6 +17,7 @@ from .services import (
     parse_reports,
     preview_report_headers,
     save_generic_report_template,
+    suggest_follow_up_questions,
     suggest_questions,
 )
 from .qa import QAResponse
@@ -160,3 +161,6 @@ class CapitalGainsWorkflow:
 
     def suggest_questions(self) -> list[str]:
         return suggest_questions(self.state.result)
+
+    def suggest_follow_up_questions(self, question: str, response: QAResponse | None = None) -> list[str]:
+        return suggest_follow_up_questions(self.state.result, question, response)

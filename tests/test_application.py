@@ -77,6 +77,19 @@ class ApplicationWorkflowTests(unittest.TestCase):
             self.assertIn("קודם צריך לנתח", response.answer)
             self.assertEqual(response.evidence, [])
 
+    def test_suggest_follow_up_questions_without_result_returns_generic_list(self) -> None:
+        with TemporaryDirectory() as tmp:
+            auth = AuthService(
+                profile_path=Path(tmp) / "profile.json",
+                token_path=Path(tmp) / "token.json",
+                users_path=Path(tmp) / "users.json",
+            )
+            workflow = CapitalGainsWorkflow(auth_service=auth)
+
+            suggestions = workflow.suggest_follow_up_questions("מה הרווח הכולל?")
+
+            self.assertGreaterEqual(len(suggestions), 1)
+
     def test_local_login_updates_workflow_state(self) -> None:
         with TemporaryDirectory() as tmp:
             auth = AuthService(

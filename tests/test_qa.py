@@ -3,7 +3,12 @@ import unittest
 
 from capital_gains_app.fifo import calculate_fifo
 from capital_gains_app.models import ActionType, CorporateActionRecord, Transaction, ValidationIssue
-from capital_gains_app.qa import answer_report_question, answer_report_question_with_evidence, suggested_report_questions
+from capital_gains_app.qa import (
+    answer_report_question,
+    answer_report_question_with_evidence,
+    suggested_follow_up_questions,
+    suggested_report_questions,
+)
 
 
 def tx(row, trade_date, action, qty, price, net, symbol="AAA", security_name="Alpha Asset", security_id="AAA"):
@@ -231,6 +236,43 @@ class ReportQATests(unittest.TestCase):
         self.assertTrue(any("תובנות" in question for question in suggestions))
         self.assertTrue(any("חריגות" in question or "נתונים חסרים" in question for question in suggestions))
         self.assertTrue(any("השווה בין" in question for question in suggestions))
+
+    def test_follow_up_questions_are_contextual_for_security_gain_question(self) -> None:
+        result = calculate_fifo(
+            [
+                tx(1, "2024-01-01", ActionType.BUY, 10, 10, -100, symbol="AAA", security_name="Alpha"),
+                tx(2, "2024-02-01", ActionType.SELL, -4, 15, 60, symbol="AAA", security_name="Alpha"),
+            ]
+        )
+        response = answer_report_question_with_evidence(result, "מה הרווח של AAA?")
+
+        suggestions = suggested_follow_up_questions(result, "מה הרווח של AAA?", response)
+
+        self.assertTrue(any("AAA" in question for question in suggestions))
+        self.assertTrue(any("פוזיציות" in question for question in suggestions))
+
+    def test_follow_up_questions_include_issues_when_relevant(self) -> None:
+        result = calculate_fifo(
+            [
+                tx(1, "2024-01-01", ActionType.BUY, 10, 10, -100, symbol="AAA"),
+                tx(2, "2024-01-15", ActionType.BUY, 8, 20, -160, symbol="BBB"),
+                tx(3, "2024-02-01", ActionType.SELL, -4, 15, 60, symbol="AAA"),
+            ]
+        )
+        result.issues = [
+            ValidationIssue(
+                severity="warning",
+                message="Missing price",
+                source_file="qa.xlsx",
+                sheet="Sheet1",
+                row_number=4,
+                field="price",
+            )
+        ]
+
+        suggestions = suggested_follow_up_questions(result, "מה הרווח הכולל?")
+
+        self.assertTrue(any("חריגות" in question or "נתונים חסרים" in question for question in suggestions))
 
 
 if __name__ == "__main__":

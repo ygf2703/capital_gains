@@ -1307,6 +1307,7 @@ class CapitalGainsApp(BaseWindow):
         self._append_chat_entry("שאלה", question)
         self._append_chat_entry("תשובה", response.answer)
         self._append_evidence_entries(response.evidence)
+        self._set_follow_up_suggestions(question, response)
         self.question_var.set("")
 
     def _ask_suggested_question(self, question: str) -> None:
@@ -1329,6 +1330,13 @@ class CapitalGainsApp(BaseWindow):
 
     def _refresh_question_suggestions(self) -> None:
         questions = self.workflow.suggest_questions()
+        self._render_suggestion_buttons(questions)
+
+    def _set_follow_up_suggestions(self, question: str, response) -> None:
+        questions = self.workflow.suggest_follow_up_questions(question, response)
+        self._render_suggestion_buttons(questions)
+
+    def _render_suggestion_buttons(self, questions: list[str]) -> None:
         for index, button in enumerate(self.suggestion_buttons):
             if index < len(questions):
                 question = questions[index]

@@ -73,6 +73,71 @@ def suggested_report_questions(result: CalculationResult | None) -> list[str]:
     return suggestions[:6] or generic
 
 
+def suggested_follow_up_questions(
+    result: CalculationResult | None,
+    question: str,
+    response: QAResponse | None = None,
+) -> list[str]:
+    if result is None:
+        return suggested_report_questions(None)
+
+    normalized = question.strip().lower()
+    suggestions: list[str] = []
+
+    def add(value: str) -> None:
+        if value and value not in suggestions and value.strip() != question.strip():
+            suggestions.append(value)
+
+    context = _extract_context(result, normalized)
+    comparison = _extract_comparison_candidates(result, normalized)
+
+    if comparison:
+        add(f"מה הפוזיציות הפתוחות של {comparison[0]}?")
+        add(f"מה הפוזיציות הפתוחות של {comparison[1]}?")
+        add("איזה נייר בולט יותר בדוח כולו?")
+    elif context.security_name:
+        add(f"מה הפוזיציות הפתוחות של {context.security_name}?")
+        add(f"כמה תנועות יש עבור {context.security_name}?")
+        add(f"היו חריגות עבור {context.security_name}?")
+    elif _contains_any(normalized, ("רווח", "הפסד", "gain", "profit", "loss")):
+        add("איזה נייר בולט יותר ברווח או בהפסד?")
+        add("אילו פוזיציות נשארו פתוחות?")
+        add("תן לי פילוח פעילות לפי סוגי פעולה")
+    elif _contains_any(normalized, ("תנוע", "transaction", "עסק", "מכירות", "קניות", "פילוח", "פירוט", "activity")):
+        add("מה הרווח הכולל?")
+        add("איזה נייר היה הפעיל ביותר?")
+        add("אילו פוזיציות נשארו פתוחות?")
+    elif _contains_any(normalized, ("חריג", "התרא", "חסר", "missing", "בעיה")):
+        add("תן לי 5 תובנות מרכזיות")
+        add("היו אירועי הון בקובץ?")
+        add("מה עוד חשוב לבדוק מעבר למסך הראשי?")
+    elif _contains_any(normalized, ("אירוע הון", "איחוד", "פיצול", "split", "corporate")):
+        add("האם היו חריגות או נתונים חסרים?")
+        add("מה הרווח הכולל?")
+        add("אילו פוזיציות נשארו פתוחות?")
+    else:
+        add("תן לי 5 תובנות מרכזיות")
+        add("מה הרווח הכולל?")
+        add("אילו פוזיציות נשארו פתוחות?")
+
+    if result.exchange_rate and not _contains_any(normalized, ("דולר", "usd", "שער", "exchange")):
+        add("איזה שער דולר שימש בחישוב?")
+    if result.issues and not _contains_any(normalized, ("חריג", "התרא", "חסר", "missing", "בעיה")):
+        add("אילו חריגות או נתונים חסרים קיימים?")
+    if result.corporate_actions and not _contains_any(normalized, ("אירוע הון", "איחוד", "פיצול", "split", "corporate")):
+        add("היו אירועי הון בקובץ?")
+
+    if response and response.evidence:
+        evidence_labels = _security_names_from_evidence(response.evidence)
+        if len(evidence_labels) >= 2:
+            add(f"השווה בין {evidence_labels[0]} ל-{evidence_labels[1]}")
+
+    for value in suggested_report_questions(result):
+        add(value)
+
+    return suggestions[:4]
+
+
 def answer_report_question(result: CalculationResult | None, question: str) -> str:
     return answer_report_question_with_evidence(result, question).answer
 
@@ -544,6 +609,18 @@ def _build_comparison_prompt(result: CalculationResult) -> str:
     if len(labels) == 2:
         return f"השווה בין {labels[0]} ל-{labels[1]}"
     return ""
+
+
+def _security_names_from_evidence(evidence: list[QAEvidence]) -> list[str]:
+    labels: list[str] = []
+    for item in evidence:
+        title_parts = [part.strip() for part in item.title.split("|")]
+        if len(title_parts) < 2:
+            continue
+        candidate = title_parts[-1]
+        if candidate and candidate not in labels:
+            labels.append(candidate)
+    return labels[:2]
 
 
 def _looks_like_anomaly_question(question: str) -> bool:

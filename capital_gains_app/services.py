@@ -9,7 +9,13 @@ from .exporter import export_result
 from .fifo import calculate_fifo
 from .models import CalculationResult, Transaction, ValidationIssue
 from .parsers import HeaderPreview, inspect_workbook_headers, parse_workbooks
-from .qa import QAResponse, answer_report_question, answer_report_question_with_evidence, suggested_report_questions
+from .qa import (
+    QAResponse,
+    answer_report_question,
+    answer_report_question_with_evidence,
+    suggested_follow_up_questions as build_follow_up_questions,
+    suggested_report_questions,
+)
 from .report_templates import build_report_template, save_report_template
 
 
@@ -70,3 +76,7 @@ def answer_question_with_evidence(result: CalculationResult | None, question: st
 
 def suggest_questions(result: CalculationResult | None) -> list[str]:
     return suggested_report_questions(result)
+
+
+def suggest_follow_up_questions(result: CalculationResult | None, question: str, response: QAResponse | None = None) -> list[str]:
+    return build_follow_up_questions(result, question, response)
