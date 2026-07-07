@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from datetime import date, datetime
 
 from .dashboard import DashboardSummary, build_dashboard_summary
-from .models import CalculationResult, Lot, RealizedMatch, Transaction
+from .models import CalculationResult, CorporateActionRecord, Lot, RealizedMatch, Transaction, ValidationIssue
 
 
 @dataclass(frozen=True, slots=True)
@@ -15,6 +15,19 @@ class QAContext:
     security_name: str = ""
     start_date: date | None = None
     end_date: date | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class QAEvidence:
+    title: str
+    detail: str
+    location: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class QAResponse:
+    answer: str
+    evidence: list[QAEvidence]
 
 
 def suggested_report_questions(result: CalculationResult | None) -> list[str]:
@@ -61,8 +74,12 @@ def suggested_report_questions(result: CalculationResult | None) -> list[str]:
 
 
 def answer_report_question(result: CalculationResult | None, question: str) -> str:
+    return answer_report_question_with_evidence(result, question).answer
+
+
+def answer_report_question_with_evidence(result: CalculationResult | None, question: str) -> QAResponse:
     if result is None:
-        return "קודם צריך לנתח לפחות קובץ אחד, ואז אוכל לענות מתוך הנתונים שלו."
+        return QAResponse("קודם צריך לנתח לפחות קובץ אחד, ואז אוכל לענות מתוך הנתונים שלו.", [])
 
     summary = build_dashboard_summary(result)
     normalized = question.strip().lower()
@@ -101,47 +118,53 @@ def answer_report_question(result: CalculationResult | None, question: str) -> s
     if _contains_any(normalized, ("summary", "סיכום")):
         return _default_answer(summary, result)
 
-    return (
-        _default_answer(summary, result)
-        + " אפשר לשאול גם על נייר מסוים, טווח תאריכים, השוואה בין שני ניירות, פוזיציות פתוחות, חריגות, פילוח פעילות או נתונים שלא הוצגו במסך הראשי."
+    default_response = _default_answer(summary, result)
+    return _response(
+        default_response.answer
+        + " אפשר לשאול גם על נייר מסוים, טווח תאריכים, השוואה בין שני ניירות, פוזיציות פתוחות, חריגות, פילוח פעילות או נתונים שלא הוצגו במסך הראשי.",
+        default_response.evidence,
     )
 
 
-def _answer_key_insights(summary: DashboardSummary) -> str:
+def _answer_key_insights(summary: DashboardSummary) -> QAResponse:
     lines = [f"{index}. {insight}" for index, insight in enumerate(summary.key_insights, start=1)]
-    return "5 תובנות מרכזיות:\n" + "\n".join(lines)
+    return _response("5 תובנות מרכזיות:\n" + "\n".join(lines))
 
 
-def _answer_gain(result: CalculationResult, summary: DashboardSummary, context: QAContext) -> str:
+def _answer_gain(result: CalculationResult, summary: DashboardSummary, context: QAContext) -> QAResponse:
     realized = _filtered_realized(result, context)
     if context.security_name or context.start_date or context.end_date:
         if not realized:
-            return f"לא מצאתי רווח/הפסד ממומש עבור {_context_label(context)}."
+            return _response(f"לא מצאתי רווח/הפסד ממומש עבור {_context_label(context)}.")
         totals = _gain_by_currency(realized)
         totals_text = _format_currency_totals(totals.items())
-        return f"הרווח/ההפסד הממומש עבור {_context_label(context)} הוא {totals_text}."
+        return _response(
+            f"הרווח/ההפסד הממומש עבור {_context_label(context)} הוא {totals_text}.",
+            _evidence_from_realized(realized),
+        )
 
     totals = _format_currency_totals(summary.gain_by_currency) or "אין רווח ממומש"
-    return f"סך הרווח/ההפסד הממומש לפי פיפו הוא {totals}."
+    return _response(f"סך הרווח/ההפסד הממומש לפי פיפו הוא {totals}.", _evidence_from_realized(result.realized))
 
 
-def _answer_transaction_count(result: CalculationResult, context: QAContext) -> str:
+def _answer_transaction_count(result: CalculationResult, context: QAContext) -> QAResponse:
     transactions = _filtered_transactions(result, context)
     if not transactions:
-        return f"לא מצאתי תנועות עבור {_context_label(context)}."
+        return _response(f"לא מצאתי תנועות עבור {_context_label(context)}.")
 
     buys = sum(1 for tx in transactions if tx.action_type.value == "BUY")
     sells = sum(1 for tx in transactions if tx.action_type.value == "SELL")
-    return (
+    return _response(
         f"עבור {_context_label(context)} נמצאו {len(transactions):,} תנועות: "
-        f"{buys:,} קניות ו-{sells:,} מכירות."
+        f"{buys:,} קניות ו-{sells:,} מכירות.",
+        _evidence_from_transactions(transactions),
     )
 
 
-def _answer_activity(result: CalculationResult, context: QAContext) -> str:
+def _answer_activity(result: CalculationResult, context: QAContext) -> QAResponse:
     transactions = _filtered_transactions(result, context)
     if not transactions:
-        return f"לא מצאתי תנועות עבור {_context_label(context)}."
+        return _response(f"לא מצאתי תנועות עבור {_context_label(context)}.")
 
     action_counts: Counter[str] = Counter(tx.action_type.value for tx in transactions)
     security_counts: Counter[str] = Counter(_transaction_label(tx) for tx in transactions)
@@ -160,67 +183,91 @@ def _answer_activity(result: CalculationResult, context: QAContext) -> str:
     ]
     if busiest and not context.security_name:
         lines.append(f"הנייר הפעיל ביותר בטווח הזה הוא {busiest[0]} עם {busiest[1]:,} תנועות.")
-    return " ".join(lines)
+    return _response(" ".join(lines), _evidence_from_transactions(transactions))
 
 
-def _answer_security_overview(result: CalculationResult, summary: DashboardSummary, context: QAContext) -> str:
+def _answer_security_overview(result: CalculationResult, summary: DashboardSummary, context: QAContext) -> QAResponse:
     if context.security_name:
         transactions = _filtered_transactions(result, context)
         realized = _filtered_realized(result, context)
         open_lots = _filtered_open_lots(result, context)
         if not transactions and not realized and not open_lots:
-            return f"לא מצאתי נתונים עבור הנייר {context.security_name}."
+            return _response(f"לא מצאתי נתונים עבור הנייר {context.security_name}.")
         gain_totals = _gain_by_currency(realized)
         gain_text = _format_currency_totals(gain_totals.items()) or "אין רווח ממומש"
         open_qty = sum(lot.quantity for lot in open_lots)
-        return (
+        return _response(
             f"עבור {context.security_name} נמצאו {len(transactions):,} תנועות, "
             f"{len(realized):,} שורות FIFO ורווח/הפסד ממומש {gain_text}. "
-            f"כמות פתוחה נוכחית: {open_qty:,.4f}."
+            f"כמות פתוחה נוכחית: {open_qty:,.4f}.",
+            _merge_evidence(
+                _evidence_from_transactions(transactions, limit=2),
+                _evidence_from_realized(realized, limit=2),
+                _evidence_from_open_lots(open_lots, limit=1),
+            ),
         )
 
     top = summary.top_securities[0][0] if summary.top_securities else "אין עדיין נייר ממומש בולט"
-    return f"זוהו {summary.unique_securities:,} ניירות ערך. הנייר הבולט כרגע הוא {top}."
+    return _response(
+        f"זוהו {summary.unique_securities:,} ניירות ערך. הנייר הבולט כרגע הוא {top}.",
+        _evidence_from_transactions(result.transactions, limit=3),
+    )
 
 
-def _answer_open_positions(result: CalculationResult, context: QAContext) -> str:
+def _answer_open_positions(result: CalculationResult, context: QAContext) -> QAResponse:
     open_lots = _filtered_open_lots(result, context)
     if not open_lots:
-        return f"אין פוזיציות פתוחות עבור {_context_label(context)}."
+        return _response(f"אין פוזיציות פתוחות עבור {_context_label(context)}.")
     grouped: dict[str, float] = defaultdict(float)
     for lot in open_lots:
         grouped[_lot_label(lot)] += lot.quantity
     largest = sorted(grouped.items(), key=lambda item: abs(item[1]), reverse=True)[:3]
     details = ", ".join(f"{label}: {qty:,.4f}" for label, qty in largest)
-    return f"יש {len(open_lots):,} פוזיציות פתוחות עבור {_context_label(context)}. הגדולות שבהן: {details}."
-
-
-def _answer_issues(result: CalculationResult, context: QAContext) -> str:
-    issues = _filtered_issues(result, context)
-    if not issues:
-        return f"לא זוהו התראות או חריגות עבור {_context_label(context)}."
-    sample = "; ".join(issue.message for issue in issues[:3])
-    return f"זוהו {len(issues):,} התראות עבור {_context_label(context)}. דוגמאות: {sample}."
-
-
-def _answer_exchange_rate(result: CalculationResult) -> str:
-    if not result.exchange_rate:
-        return "עדיין לא נטען שער דולר לחישוב הזה."
-    rate = result.exchange_rate
-    return (
-        f"שער הדולר שנשמר עם החישוב הוא {rate.rate:.4f}, פורסם ב-{rate.published_date:%Y-%m-%d} "
-        f"עבור תאריך מבוקש {rate.requested_date:%Y-%m-%d}."
+    return _response(
+        f"יש {len(open_lots):,} פוזיציות פתוחות עבור {_context_label(context)}. הגדולות שבהן: {details}.",
+        _evidence_from_open_lots(open_lots),
     )
 
 
-def _answer_fifo_rows(result: CalculationResult, context: QAContext) -> str:
+def _answer_issues(result: CalculationResult, context: QAContext) -> QAResponse:
+    issues = _filtered_issues(result, context)
+    if not issues:
+        return _response(f"לא זוהו התראות או חריגות עבור {_context_label(context)}.")
+    sample = "; ".join(issue.message for issue in issues[:3])
+    return _response(
+        f"זוהו {len(issues):,} התראות עבור {_context_label(context)}. דוגמאות: {sample}.",
+        _evidence_from_issues(issues),
+    )
+
+
+def _answer_exchange_rate(result: CalculationResult) -> QAResponse:
+    if not result.exchange_rate:
+        return _response("עדיין לא נטען שער דולר לחישוב הזה.")
+    rate = result.exchange_rate
+    return _response(
+        f"שער הדולר שנשמר עם החישוב הוא {rate.rate:.4f}, פורסם ב-{rate.published_date:%Y-%m-%d} "
+        f"עבור תאריך מבוקש {rate.requested_date:%Y-%m-%d}.",
+        [
+            QAEvidence(
+                title="שער דולר",
+                detail=f"שער {rate.rate:.4f} עבור {rate.currency_pair}, מבוקש {rate.requested_date:%Y-%m-%d}, פורסם {rate.published_date:%Y-%m-%d}.",
+                location=rate.source,
+            )
+        ],
+    )
+
+
+def _answer_fifo_rows(result: CalculationResult, context: QAContext) -> QAResponse:
     realized = _filtered_realized(result, context)
     if not realized:
-        return f"לא מצאתי שורות FIFO עבור {_context_label(context)}."
-    return f"נוצרו {len(realized):,} שורות FIFO עבור {_context_label(context)}."
+        return _response(f"לא מצאתי שורות FIFO עבור {_context_label(context)}.")
+    return _response(
+        f"נוצרו {len(realized):,} שורות FIFO עבור {_context_label(context)}.",
+        _evidence_from_realized(realized),
+    )
 
 
-def _answer_comparison(result: CalculationResult, left_name: str, right_name: str) -> str:
+def _answer_comparison(result: CalculationResult, left_name: str, right_name: str) -> QAResponse:
     left_context = QAContext(security_name=left_name)
     right_context = QAContext(security_name=right_name)
     left_realized = _filtered_realized(result, left_context)
@@ -229,7 +276,7 @@ def _answer_comparison(result: CalculationResult, left_name: str, right_name: st
     right_transactions = _filtered_transactions(result, right_context)
 
     if not left_transactions and not right_transactions:
-        return f"לא מצאתי נתונים להשוואה בין {left_name} לבין {right_name}."
+        return _response(f"לא מצאתי נתונים להשוואה בין {left_name} לבין {right_name}.")
 
     left_gain = sum(row.gain_loss for row in left_realized)
     right_gain = sum(row.gain_loss for row in right_realized)
@@ -237,20 +284,24 @@ def _answer_comparison(result: CalculationResult, left_name: str, right_name: st
     right_open = sum(lot.quantity for lot in _filtered_open_lots(result, right_context))
 
     winner = left_name if left_gain >= right_gain else right_name
-    return (
+    return _response(
         f"השוואה בין {left_name} ל-{right_name}: "
         f"{left_name} עם {len(left_transactions):,} תנועות, רווח/הפסד {left_gain:,.2f}, כמות פתוחה {left_open:,.4f}; "
         f"{right_name} עם {len(right_transactions):,} תנועות, רווח/הפסד {right_gain:,.2f}, כמות פתוחה {right_open:,.4f}. "
-        f"כרגע {winner} בולט יותר ברווח הממומש."
+        f"כרגע {winner} בולט יותר ברווח הממומש.",
+        _merge_evidence(
+            _evidence_from_realized(left_realized, limit=2),
+            _evidence_from_realized(right_realized, limit=2),
+        ),
     )
 
 
-def _answer_anomaly(result: CalculationResult, context: QAContext) -> str:
+def _answer_anomaly(result: CalculationResult, context: QAContext) -> QAResponse:
     realized = _filtered_realized(result, context)
     transactions = _filtered_transactions(result, context)
     open_lots = _filtered_open_lots(result, context)
     if not realized and not transactions and not open_lots:
-        return f"לא מצאתי נתונים חריגים עבור {_context_label(context)}."
+        return _response(f"לא מצאתי נתונים חריגים עבור {_context_label(context)}.")
 
     gain_by_security: dict[str, float] = defaultdict(float)
     txn_counter: Counter[str] = Counter()
@@ -273,10 +324,19 @@ def _answer_anomaly(result: CalculationResult, context: QAContext) -> str:
         largest = max(open_lots, key=lambda lot: abs(lot.quantity))
         insights.append(f"הפוזיציה הפתוחה הגדולה ביותר היא {_lot_label(largest)} עם {largest.quantity:,.4f}.")
 
-    return " ".join(insights) if insights else f"לא זיהיתי חריגה בולטת עבור {_context_label(context)}."
+    if insights:
+        return _response(
+            " ".join(insights),
+            _merge_evidence(
+                _evidence_from_realized(realized, limit=2),
+                _evidence_from_transactions(transactions, limit=1),
+                _evidence_from_open_lots(open_lots, limit=1),
+            ),
+        )
+    return _response(f"לא זיהיתי חריגה בולטת עבור {_context_label(context)}.")
 
 
-def _answer_hidden_data(result: CalculationResult, summary: DashboardSummary, context: QAContext) -> str:
+def _answer_hidden_data(result: CalculationResult, summary: DashboardSummary, context: QAContext) -> QAResponse:
     issues = _filtered_issues(result, context)
     inferred_rows = [row for row in _filtered_realized(result, context) if row.inferred]
     open_lots = _filtered_open_lots(result, context)
@@ -299,24 +359,35 @@ def _answer_hidden_data(result: CalculationResult, summary: DashboardSummary, co
         )
 
     if not lines:
-        return f"מעבר למסך הראשי לא זיהיתי כרגע שכבת מידע נוספת שחייבת תשומת לב עבור {_context_label(context)}."
-    return "מעבר לכרטיסים ולגרפים במסך, יש עוד מידע שכדאי לשים לב אליו: " + " ".join(lines)
+        return _response(f"מעבר למסך הראשי לא זיהיתי כרגע שכבת מידע נוספת שחייבת תשומת לב עבור {_context_label(context)}.")
+    return _response(
+        "מעבר לכרטיסים ולגרפים במסך, יש עוד מידע שכדאי לשים לב אליו: " + " ".join(lines),
+        _merge_evidence(
+            _evidence_from_issues(issues, limit=2),
+            _evidence_from_realized(inferred_rows, limit=2),
+            _evidence_from_corporate_actions(corporate_actions, limit=2),
+            _evidence_from_open_lots(open_lots, limit=1),
+        ),
+    )
 
 
-def _answer_corporate_actions(result: CalculationResult, context: QAContext) -> str:
+def _answer_corporate_actions(result: CalculationResult, context: QAContext) -> QAResponse:
     actions = _filtered_corporate_actions(result, context)
     if not actions:
-        return f"לא זוהו אירועי הון עבור {_context_label(context)}."
+        return _response(f"לא זוהו אירועי הון עבור {_context_label(context)}.")
 
     samples = []
     for action in actions[:3]:
         ratio_text = f"יחס {action.ratio:.4f}" if action.ratio else f"כמות {action.old_quantity:,.4f} -> {action.new_quantity:,.4f}"
         samples.append(f"{action.action_date:%Y-%m-%d}: {_corporate_action_label(action.action_type)} ({ratio_text})")
     details = "; ".join(samples)
-    return f"זוהו {len(actions):,} אירועי הון עבור {_context_label(context)}. דוגמאות: {details}."
+    return _response(
+        f"זוהו {len(actions):,} אירועי הון עבור {_context_label(context)}. דוגמאות: {details}.",
+        _evidence_from_corporate_actions(actions),
+    )
 
 
-def _default_answer(summary: DashboardSummary, result: CalculationResult) -> str:
+def _default_answer(summary: DashboardSummary, result: CalculationResult) -> QAResponse:
     lines = [
         f"נותחו {summary.total_transactions:,} תנועות על פני {summary.unique_securities:,} ניירות ערך.",
         f"נוצרו {summary.realized_rows:,} שורות FIFO ויש {len(result.open_lots):,} פוזיציות פתוחות.",
@@ -326,7 +397,14 @@ def _default_answer(summary: DashboardSummary, result: CalculationResult) -> str
         lines.append(f"רווח/הפסד ממומש: {totals}.")
     if result.issues:
         lines.append(f"יש גם {len(result.issues):,} התראות שכדאי לעבור עליהן.")
-    return " ".join(lines)
+    return _response(
+        " ".join(lines),
+        _merge_evidence(
+            _evidence_from_transactions(result.transactions, limit=2),
+            _evidence_from_realized(result.realized, limit=2),
+            _evidence_from_issues(result.issues, limit=1),
+        ),
+    )
 
 
 def _extract_context(result: CalculationResult, question: str) -> QAContext:
@@ -413,7 +491,7 @@ def _filtered_open_lots(result: CalculationResult, context: QAContext) -> list[L
     return rows
 
 
-def _filtered_issues(result: CalculationResult, context: QAContext) -> list:
+def _filtered_issues(result: CalculationResult, context: QAContext) -> list[ValidationIssue]:
     rows = result.issues
     if context.security_name:
         wanted = context.security_name.lower()
@@ -425,7 +503,7 @@ def _filtered_issues(result: CalculationResult, context: QAContext) -> list:
     return rows
 
 
-def _filtered_corporate_actions(result: CalculationResult, context: QAContext) -> list:
+def _filtered_corporate_actions(result: CalculationResult, context: QAContext) -> list[CorporateActionRecord]:
     rows = result.corporate_actions
     if context.security_name:
         wanted = context.security_name.lower()
@@ -476,8 +554,99 @@ def _contains_any(text: str, tokens: tuple[str, ...]) -> bool:
     return any(token in text for token in tokens)
 
 
+def _response(answer: str, evidence: list[QAEvidence] | None = None) -> QAResponse:
+    return QAResponse(answer=answer, evidence=_limit_evidence(evidence or []))
+
+
+def _merge_evidence(*groups: list[QAEvidence]) -> list[QAEvidence]:
+    merged: list[QAEvidence] = []
+    seen: set[tuple[str, str, str]] = set()
+    for group in groups:
+        for item in group:
+            key = (item.title, item.detail, item.location)
+            if key in seen:
+                continue
+            seen.add(key)
+            merged.append(item)
+    return merged
+
+
+def _limit_evidence(evidence: list[QAEvidence], limit: int = 4) -> list[QAEvidence]:
+    return evidence[:limit]
+
+
 def _format_currency_totals(rows) -> str:
     return ", ".join(f"{currency}: {value:,.2f}" for currency, value in rows)
+
+
+def _evidence_from_transactions(rows: list[Transaction], limit: int = 4) -> list[QAEvidence]:
+    ordered = sorted(rows, key=lambda row: (row.trade_date, row.row_number))
+    evidence: list[QAEvidence] = []
+    for row in ordered[:limit]:
+        evidence.append(
+            QAEvidence(
+                title=f"{_action_label(row.action_type.value)} | {_transaction_label(row)}",
+                detail=f"{row.trade_date:%Y-%m-%d}, כמות {row.absolute_quantity:,.4f}, מחיר {row.price:,.4f} {row.currency or ''}".strip(),
+                location=_transaction_location(row),
+            )
+        )
+    return evidence
+
+
+def _evidence_from_realized(rows: list[RealizedMatch], limit: int = 4) -> list[QAEvidence]:
+    ordered = sorted(rows, key=lambda row: (row.sale_date, row.sale_row))
+    evidence: list[QAEvidence] = []
+    for row in ordered[:limit]:
+        buy_ref = f", קנייה משורה {row.buy_row}" if row.buy_row else ""
+        evidence.append(
+            QAEvidence(
+                title=f"FIFO | {_realized_label(row)}",
+                detail=f"מכירה {row.sale_date:%Y-%m-%d}, כמות {row.quantity:,.4f}, רווח/הפסד {row.gain_loss:,.2f} {row.currency}{buy_ref}.",
+                location=_realized_location(row),
+            )
+        )
+    return evidence
+
+
+def _evidence_from_open_lots(rows: list[Lot], limit: int = 4) -> list[QAEvidence]:
+    ordered = sorted(rows, key=lambda row: abs(row.quantity), reverse=True)
+    evidence: list[QAEvidence] = []
+    for row in ordered[:limit]:
+        evidence.append(
+            QAEvidence(
+                title=f"פוזיציה פתוחה | {_lot_label(row)}",
+                detail=f"כמות {row.quantity:,.4f}, עלות כוללת {row.total_cost:,.2f} {row.currency}, נרכשה ב-{row.acquired_date:%Y-%m-%d}.",
+                location=_lot_location(row),
+            )
+        )
+    return evidence
+
+
+def _evidence_from_issues(rows: list[ValidationIssue], limit: int = 4) -> list[QAEvidence]:
+    evidence: list[QAEvidence] = []
+    for row in rows[:limit]:
+        evidence.append(
+            QAEvidence(
+                title=f"התראה | {row.severity}",
+                detail=row.message,
+                location=_issue_location(row),
+            )
+        )
+    return evidence
+
+
+def _evidence_from_corporate_actions(rows: list[CorporateActionRecord], limit: int = 4) -> list[QAEvidence]:
+    evidence: list[QAEvidence] = []
+    for row in rows[:limit]:
+        ratio_text = f"יחס {row.ratio:.4f}" if row.ratio else f"כמות {row.old_quantity:,.4f} -> {row.new_quantity:,.4f}"
+        evidence.append(
+            QAEvidence(
+                title=f"אירוע הון | {_corporate_action_label(row.action_type)}",
+                detail=f"{row.action_date:%Y-%m-%d}, {ratio_text}.",
+                location=f"{row.source_file} | שורות {row.row_numbers}",
+            )
+        )
+    return evidence
 
 
 def _action_label(action: str) -> str:
@@ -511,12 +680,29 @@ def _transaction_label(tx: Transaction) -> str:
     return tx.symbol or tx.security_name or tx.security_id or tx.inventory_key
 
 
+def _transaction_location(tx: Transaction) -> str:
+    return f"{tx.source_file} | {tx.sheet} | שורה {tx.row_number}"
+
+
 def _realized_label(row: RealizedMatch) -> str:
     return row.symbol or row.security_name or row.security_id or row.security_key
 
 
+def _realized_location(row: RealizedMatch) -> str:
+    buy_ref = f" | קנייה שורה {row.buy_row}" if row.buy_row else ""
+    return f"{row.sale_source_file} | מכירה שורה {row.sale_row}{buy_ref}"
+
+
 def _lot_label(lot: Lot) -> str:
     return lot.symbol or lot.security_name or lot.security_id or lot.security_key
+
+
+def _lot_location(lot: Lot) -> str:
+    return f"{lot.source_file} | שורה {lot.source_row}"
+
+
+def _issue_location(issue: ValidationIssue) -> str:
+    return f"{issue.source_file} | {issue.sheet} | שורה {issue.row_number}"
 
 
 def _context_label(context: QAContext) -> str:

@@ -11,6 +11,7 @@ from .parsers import HeaderPreview
 from .services import (
     ParsedReports,
     answer_question,
+    answer_question_with_evidence,
     calculate_analysis,
     export_analysis,
     parse_reports,
@@ -18,6 +19,7 @@ from .services import (
     save_generic_report_template,
     suggest_questions,
 )
+from .qa import QAResponse
 from .user_identity import UserIdentity, load_user_identity
 
 
@@ -152,6 +154,9 @@ class CapitalGainsWorkflow:
 
     def answer_question(self, question: str) -> str:
         return answer_question(self.state.result, question)
+
+    def answer_question_with_evidence(self, question: str) -> QAResponse:
+        return answer_question_with_evidence(self.state.result, question)
 
     def suggest_questions(self) -> list[str]:
         return suggest_questions(self.state.result)

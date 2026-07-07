@@ -3,7 +3,7 @@ import unittest
 
 from capital_gains_app.fifo import calculate_fifo
 from capital_gains_app.models import ActionType, CorporateActionRecord, Transaction, ValidationIssue
-from capital_gains_app.qa import answer_report_question, suggested_report_questions
+from capital_gains_app.qa import answer_report_question, answer_report_question_with_evidence, suggested_report_questions
 
 
 def tx(row, trade_date, action, qty, price, net, symbol="AAA", security_name="Alpha Asset", security_id="AAA"):
@@ -58,6 +58,21 @@ class ReportQATests(unittest.TestCase):
 
         self.assertIn("AAA", answer)
         self.assertIn("20.00", answer)
+
+    def test_grounded_answer_returns_evidence_for_specific_security(self) -> None:
+        result = calculate_fifo(
+            [
+                tx(1, "2024-01-01", ActionType.BUY, 10, 10, -100, symbol="AAA", security_name="Alpha"),
+                tx(2, "2024-02-01", ActionType.SELL, -4, 15, 60, symbol="AAA", security_name="Alpha"),
+            ]
+        )
+
+        response = answer_report_question_with_evidence(result, "מה הרווח של AAA?")
+
+        self.assertIn("AAA", response.answer)
+        self.assertGreaterEqual(len(response.evidence), 1)
+        self.assertTrue(any("FIFO" in item.title for item in response.evidence))
+        self.assertTrue(any("qa.xlsx" in item.location for item in response.evidence))
 
     def test_answers_for_date_range(self) -> None:
         result = calculate_fifo(
@@ -155,6 +170,29 @@ class ReportQATests(unittest.TestCase):
         self.assertIn("מעבר לכרטיסים", answer)
         self.assertIn("התראות", answer)
         self.assertIn("אירועי הון", answer)
+
+    def test_grounded_hidden_data_answer_includes_issue_evidence(self) -> None:
+        result = calculate_fifo(
+            [
+                tx(1, "2024-01-01", ActionType.BUY, 10, 10, -100, symbol="AAA"),
+                tx(2, "2024-02-01", ActionType.SELL, -4, 15, 60, symbol="AAA"),
+            ]
+        )
+        result.issues = [
+            ValidationIssue(
+                severity="warning",
+                message="Missing note",
+                source_file="qa.xlsx",
+                sheet="Sheet1",
+                row_number=2,
+                field="note",
+            )
+        ]
+
+        response = answer_report_question_with_evidence(result, "אילו חריגות או נתונים חסרים קיימים?")
+
+        self.assertIn("התראות", response.answer)
+        self.assertTrue(any("התראה" in item.title for item in response.evidence))
 
     def test_answers_key_insights_question(self) -> None:
         result = calculate_fifo(

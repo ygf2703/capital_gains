@@ -63,6 +63,20 @@ class ApplicationWorkflowTests(unittest.TestCase):
 
             self.assertIn("קודם צריך לנתח", answer)
 
+    def test_answer_question_with_evidence_uses_state_result(self) -> None:
+        with TemporaryDirectory() as tmp:
+            auth = AuthService(
+                profile_path=Path(tmp) / "profile.json",
+                token_path=Path(tmp) / "token.json",
+                users_path=Path(tmp) / "users.json",
+            )
+            workflow = CapitalGainsWorkflow(auth_service=auth)
+
+            response = workflow.answer_question_with_evidence("כמה תנועות יש?")
+
+            self.assertIn("קודם צריך לנתח", response.answer)
+            self.assertEqual(response.evidence, [])
+
     def test_local_login_updates_workflow_state(self) -> None:
         with TemporaryDirectory() as tmp:
             auth = AuthService(

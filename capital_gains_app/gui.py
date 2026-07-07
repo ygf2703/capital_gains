@@ -1303,9 +1303,10 @@ class CapitalGainsApp(BaseWindow):
         question = self.question_var.get().strip()
         if not question:
             return
-        answer = self.workflow.answer_question(question)
+        response = self.workflow.answer_question_with_evidence(question)
         self._append_chat_entry("שאלה", question)
-        self._append_chat_entry("תשובה", answer)
+        self._append_chat_entry("תשובה", response.answer)
+        self._append_evidence_entries(response.evidence)
         self.question_var.set("")
 
     def _ask_suggested_question(self, question: str) -> None:
@@ -1345,6 +1346,17 @@ class CapitalGainsApp(BaseWindow):
         self.chat_box.insert("end", ui_text(f"{role}: {text}"))
         self.chat_box.see("end")
         self.chat_box.configure(state="disabled")
+
+    def _append_evidence_entries(self, entries) -> None:
+        if self.chat_box is None or not entries:
+            return
+        lines = ["אסמכתאות מהדוח:"]
+        for entry in entries:
+            line = f"- {entry.title}: {entry.detail}"
+            if entry.location:
+                line += f" [{entry.location}]"
+            lines.append(line)
+        self._append_chat_entry("פירוט", "\n".join(lines))
 
     def add_files(self) -> None:
         selected = filedialog.askopenfilenames(
