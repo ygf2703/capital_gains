@@ -9,6 +9,7 @@
 - `assets/capital-gains-logo.svg` — לוגו וקטורי לשימוש בכותרת וברקע.
 - `assets/favicon.svg` — favicon.
 - `USER_GUIDE_HE.md` — מדריך עבודה מלא למשתמש הקצה של האפליקציה.
+- `GOOGLE_SIGNIN_SETUP.md` — מדריך התקנה והגדרה ל-Google Sign-In בגרסת ה-Desktop.
 
 ## שילוב הלוגו ברקע
 
