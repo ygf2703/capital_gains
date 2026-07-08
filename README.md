@@ -98,6 +98,7 @@ python -m venv .venv
 
 - [מדריך עבודה למשתמש](./docs/USER_GUIDE_HE.md)
 - [הגדרת Google Sign-In](./docs/GOOGLE_SIGNIN_SETUP.md)
+- [צ'קליסט שחרור להפצה](./docs/RELEASE_CHECKLIST_HE.md)
 - [מסמכי docs נוספים](./docs/README.md)
 
 ## הרצת CLI

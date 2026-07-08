@@ -10,6 +10,7 @@
 - `assets/favicon.svg` — favicon.
 - `USER_GUIDE_HE.md` — מדריך עבודה מלא למשתמש הקצה של האפליקציה.
 - `GOOGLE_SIGNIN_SETUP.md` — מדריך התקנה והגדרה ל-Google Sign-In בגרסת ה-Desktop.
+- `RELEASE_CHECKLIST_HE.md` — צ'קליסט שחרור והפצה לפני בניית EXE ומסירה.
 
 ## שילוב הלוגו ברקע
 
