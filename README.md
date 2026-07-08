@@ -94,6 +94,11 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m unittest discover -s tests
 ```
 
+## מסמכי עזר
+
+- [מדריך עבודה למשתמש](./docs/USER_GUIDE_HE.md)
+- [מסמכי docs נוספים](./docs/README.md)
+
 ## הרצת CLI
 
 לשימוש אלפא או לאימות חישוב בלי ממשק:

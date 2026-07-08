@@ -8,6 +8,7 @@
 - `styles.css` — עיצוב Premium פיננסי, רספונסיבי, Navy/Gold לפי שפת המותג.
 - `assets/capital-gains-logo.svg` — לוגו וקטורי לשימוש בכותרת וברקע.
 - `assets/favicon.svg` — favicon.
+- `USER_GUIDE_HE.md` — מדריך עבודה מלא למשתמש הקצה של האפליקציה.
 
 ## שילוב הלוגו ברקע
 
