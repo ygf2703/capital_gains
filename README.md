@@ -98,6 +98,7 @@ python -m venv .venv
 
 - [מדריך עבודה למשתמש](./docs/USER_GUIDE_HE.md)
 - [הגדרת Google Sign-In](./docs/GOOGLE_SIGNIN_SETUP.md)
+- [בניית MSIX לחנות](./docs/MSIX_PACKAGING_HE.md)
 - [צ'קליסט שחרור להפצה](./docs/RELEASE_CHECKLIST_HE.md)
 - [מסמכי docs נוספים](./docs/README.md)
 
@@ -126,6 +127,24 @@ python -m venv .venv
 ```text
 dist\CapitalGainsFIFO.exe
 ```
+
+## בניית MSIX
+
+למסלול Microsoft Store:
+
+```powershell
+.\build_msix.ps1
+```
+
+לפני ההרצה צריך להכין:
+
+- `config\msix.settings.json`
+- זהות אפליקציה מ־Partner Center
+- Windows SDK
+
+הסבר מלא נמצא כאן:
+
+- [בניית MSIX לחנות](./docs/MSIX_PACKAGING_HE.md)
 
 ## התחברות והרשמה
 

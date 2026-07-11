@@ -1,0 +1,16 @@
+{
+  "identityName": "REPLACE_WITH_PARTNER_CENTER_IDENTITY_NAME",
+  "publisher": "CN=REPLACE_WITH_PARTNER_CENTER_PUBLISHER",
+  "publisherDisplayName": "REPLACE_WITH_PUBLISHER_DISPLAY_NAME",
+  "displayName": "Capital Gains",
+  "shortDisplayName": "Capital Gains",
+  "description": "Capital gains FIFO desktop analyzer",
+  "language": "he-IL",
+  "minVersion": "10.0.17763.0",
+  "maxVersionTested": "10.0.26100.0",
+  "signing": {
+    "enabled": false,
+    "certificatePath": "",
+    "certificatePassword": ""
+  }
+}

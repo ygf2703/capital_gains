@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap rescap">
+  <Identity
+    Name="{{IdentityName}}"
+    Publisher="{{Publisher}}"
+    Version="{{Version}}" />
+
+  <Properties>
+    <DisplayName>{{DisplayName}}</DisplayName>
+    <PublisherDisplayName>{{PublisherDisplayName}}</PublisherDisplayName>
+    <Description>{{Description}}</Description>
+    <Logo>assets\images\capital_gains_logo.png</Logo>
+  </Properties>
+
+  <Dependencies>
+    <TargetDeviceFamily
+      Name="Windows.Desktop"
+      MinVersion="{{MinVersion}}"
+      MaxVersionTested="{{MaxVersionTested}}" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="{{Language}}" />
+  </Resources>
+
+  <Applications>
+    <Application
+      Id="App"
+      Executable="CapitalGainsFIFO.exe"
+      EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements
+        DisplayName="{{ShortDisplayName}}"
+        Description="{{Description}}"
+        BackgroundColor="transparent"
+        Square150x150Logo="assets\images\capital_gains_logo.png"
+        Square44x44Logo="assets\images\capital_gains_logo.png">
+        <uap:DefaultTile
+          Wide310x150Logo="assets\images\capital_gains_logo.png"
+          Square71x71Logo="assets\images\capital_gains_logo.png" />
+        <uap:SplashScreen
+          Image="assets\images\capital_gains_logo.png"
+          BackgroundColor="transparent" />
+      </uap:VisualElements>
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+</Package>
